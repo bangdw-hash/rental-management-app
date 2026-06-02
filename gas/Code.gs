@@ -582,7 +582,6 @@ function initSheets() {
   initSettingsSheet(ss);
 
   Logger.log('✅ initSheets 완료: 시트 5개 초기화, 기본 시설 ' + DEFAULT_VENUES.length + '개 등록');
-  SpreadsheetApp.getUi().alert('초기화 완료!\n시트와 기본 시설 데이터가 등록되었습니다.\n\n이제 웹 앱을 배포하세요.');
 }
 
 function initVenueSheet(ss) {
@@ -632,7 +631,8 @@ function addLogEntry(ss, requestId, step, memo) {
 
 // ── 유틸 ──────────────────────────────────────────
 function getKSTTimestamp() {
-  return new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+  var kst = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().replace('T', ' ').substring(0, 19);
 }
 
 function formatMoney(n) {
