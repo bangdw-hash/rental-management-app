@@ -191,8 +191,13 @@ select { cursor: pointer; }
 .venue-rate-table td {
   padding: 8px 10px; border: 1px solid #e2e8f0;
   text-align: center; vertical-align: middle; font-weight: 500; color: #2d3748;
+  transition: background 0.18s;
 }
 .venue-rate-table tr:nth-child(even) td { background: #f8fafc; }
+.venue-rate-table tbody tr.venue-hover td:not(.building-cell) {
+  background: #d4e8fa;
+}
+.venue-rate-table tbody tr { cursor: default; }
 .venue-rate-table .building-cell {
   font-weight: 700; background: #edf2f8; color: #1e3a5f;
   writing-mode: vertical-rl; text-orientation: mixed; width: 34px; font-size: 0.78rem;

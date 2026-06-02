@@ -66,7 +66,7 @@ function renderPricingTable() {
     bVenues.forEach(function(v) {
       var rows = (v.personRates && v.personRates.length > 0) ? v.personRates : [null];
       rows.forEach(function(pr, pi) {
-        html += '<tr>';
+        html += '<tr data-vid="' + v.id + '">';
         if (bFirst && pi === 0) {
           html += '<td class="building-cell" rowspan="' + totalRows + '">' + bname + '</td>';
           bFirst = false;
@@ -103,6 +103,24 @@ function renderPricingTable() {
     });
   });
   tbody.innerHTML = html;
+  setupTableHover(tbody);
+}
+
+function setupTableHover(tbody) {
+  tbody.querySelectorAll('tr[data-vid]').forEach(function(row) {
+    row.addEventListener('mouseenter', function() {
+      var vid = this.dataset.vid;
+      tbody.querySelectorAll('tr[data-vid="' + vid + '"]').forEach(function(r) {
+        r.classList.add('venue-hover');
+      });
+    });
+    row.addEventListener('mouseleave', function() {
+      var vid = this.dataset.vid;
+      tbody.querySelectorAll('tr[data-vid="' + vid + '"]').forEach(function(r) {
+        r.classList.remove('venue-hover');
+      });
+    });
+  });
 }
 
 function updateFootnote() {
