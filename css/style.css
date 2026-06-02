@@ -590,7 +590,7 @@ select { cursor: pointer; }
 .chip-off { background: #f8f9fa; color: #a0aec0; }
 
 /* 모달 */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
 .modal-box { background: white; border-radius: 10px; box-shadow: 0 12px 40px rgba(0,0,0,0.18); display: flex; flex-direction: column; max-height: 90vh; }
 .modal-box.modal-lg { width: 640px; max-width: 100%; }
 .modal-box.modal-xl { width: 900px; max-width: 100%; }

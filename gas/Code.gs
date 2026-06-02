@@ -14,21 +14,26 @@ var SH_SETTINGS  = '관리자설정';
 
 // ─── 기본 설정값 ──────────────────────────────────
 var DEFAULT_SETTINGS = {
-  SURCHARGE_RATE:    '30',
-  FULL_DAY_HOURS:    '6',
-  BIZ_START:         '9',
-  BIZ_END:           '18',
-  QUOTE_VALIDITY:    '7',
-  ISSUER_NAME:       '(재)아세아항공직업전문학교',
-  ISSUER_REP:        '전영숙',
-  ISSUER_BIZ_NO:     '106-82-06370',
-  ISSUER_CORP_NO:    '114222-0006574',
-  ISSUER_ADDR:       '서울특별시 영등포구 당산로32길 16',
-  ISSUER_ACCOUNT:    'IBK기업 (재)아세아항공직업전문학교 025-049131-04-042',
-  MANAGER_NAME:      '방시원',
-  MANAGER_TITLE:     '차장',
-  MANAGER_TEL:       '010-2055-5883',
-  MANAGER_EMAIL:     'bangsw@asea.or.kr'
+  SURCHARGE_RATE:       '30',
+  OFF_HOUR_RATE:        '30',
+  FULL_DAY_HOURS:       '6',
+  BIZ_START:            '9',
+  BIZ_END:              '18',
+  QUOTE_VALIDITY:       '7',
+  ISSUER_NAME:          '(재)아세아항공직업전문학교',
+  ISSUER_REP:           '전영숙',
+  ISSUER_BIZ_NO:        '106-82-06370',
+  ISSUER_CORP_NO:       '114222-0006574',
+  ISSUER_ADDR:          '서울특별시 영등포구 당산로32길 16',
+  ISSUER_ACCOUNT:       'IBK기업 (재)아세아항공직업전문학교 025-049131-04-042',
+  MANAGER_NAME:         '방시원',
+  MANAGER_TITLE:        '차장',
+  MANAGER_TEL:          '010-2055-5883',
+  MANAGER_EMAIL:        'bangsw@asea.or.kr',
+  TELEGRAM_BOT_TOKEN:   '',
+  TELEGRAM_CHAT_ID:     '',
+  NOTIFICATION_EMAIL:   '',
+  PARKING_NOTICE:       ''
 };
 
 // ─── 기본 시설 데이터 ─────────────────────────────
@@ -83,6 +88,7 @@ function doPost(e) {
   catch (err) { return jsonResponse({ success: false, message: '잘못된 요청' }); }
 
   var action = data.action;
+  if (action === 'checkPassword')   return checkPassword(data);
   if (action === 'submitRequest')   return submitRequest(data);
   if (action === 'updateStatus')    return updateStatus(data);
   if (action === 'addSchedule')     return addSchedule(data);
@@ -94,6 +100,14 @@ function doPost(e) {
   if (action === 'updateFinalAmt')  return updateFinalAmount(data);
   if (action === 'sendEmail')       return sendEmailAction(data);
   return jsonResponse({ success: false, message: '알 수 없는 요청' });
+}
+
+// ══════════════════════════════════════════════════
+//  인증
+// ══════════════════════════════════════════════════
+
+function checkPassword(data) {
+  return jsonResponse({ ok: data.password === ADMIN_PASSWORD });
 }
 
 // ══════════════════════════════════════════════════
@@ -433,7 +447,16 @@ function saveSettings(data) {
   var sheet = getOrCreateSheet(ss, SH_SETTINGS, ['설정키','설정값']);
 
   var rows = sheet.getDataRange().getValues();
-  var updates = data.settings || {};
+  // Accept flat UPPER_SNAKE_CASE payload (venue-admin.js sends keys directly,
+  // not nested under a 'settings' key).  Fall back to data.settings for
+  // backwards-compatibility with any callers that do wrap them.
+  var updates = data.settings || (function() {
+    var flat = {};
+    Object.keys(data).forEach(function(k) {
+      if (k !== 'action' && k !== 'password') flat[k] = data[k];
+    });
+    return flat;
+  })();
 
   Object.keys(updates).forEach(function(key) {
     var found = false;

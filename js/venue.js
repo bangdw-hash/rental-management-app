@@ -625,7 +625,7 @@ function submitReservation() {
   btn.disabled = true;
   btn.textContent = '전송 중...';
 
-  fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) })
+  fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) })
     .then(function(r) { return r.json(); })
     .then(function(res) {
       if (res.success) {

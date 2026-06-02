@@ -11,6 +11,7 @@ let currentEmailProjectId = null;
 let currentSchedProjectId = null;
 let editingVenueId = null;
 let personRateCount = 0;
+let adminPassword = '';
 
 // ─────────────────────────────────────────
 //  인증
@@ -21,6 +22,7 @@ function doLogin() {
   callGAS('checkPassword', { password: pw })
     .then(r => {
       if (r.ok) {
+        adminPassword = pw;
         document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('adminDash').style.display = 'flex';
         loadAll();
@@ -31,6 +33,7 @@ function doLogin() {
     .catch(() => {
       // fallback: 로컬 확인
       if (pw === 'admin1234') {
+        adminPassword = pw;
         document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('adminDash').style.display = 'flex';
         loadAll();
@@ -58,7 +61,7 @@ async function loadAll() {
 async function loadVenues() {
   try {
     const r = await callGAS('getVenues', {});
-    venues = r.data || [];
+    venues = r.venues || [];
     populateBuildingFilter();
   } catch (e) { venues = []; }
 }
@@ -66,7 +69,7 @@ async function loadVenues() {
 async function loadRequests() {
   try {
     const r = await callGAS('getRequests', {});
-    requests = r.data || [];
+    requests = r.requests || [];
     updateReqBadge();
   } catch (e) { requests = []; }
 }
@@ -74,7 +77,7 @@ async function loadRequests() {
 async function loadSettings() {
   try {
     const r = await callGAS('getSettings', {});
-    settings = r.data || {};
+    settings = r.settings || {};
     applySettingsToForm();
   } catch (e) { settings = {}; }
 }
@@ -83,7 +86,7 @@ async function loadReport() {
   const period = document.getElementById('reportPeriod').value;
   try {
     const r = await callGAS('getReport', { period });
-    renderReport(r.data || {});
+    renderReport(r.report || {});
   } catch (e) { renderReport({}); }
 }
 
@@ -304,7 +307,7 @@ async function openProjectModal(id) {
   let detail = req;
   try {
     const r = await callGAS('getRequestDetail', { id });
-    detail = r.data || req;
+    detail = r.request || req;
   } catch (e) {}
 
   document.getElementById('projModalBody').innerHTML = buildProjectDetail(detail);
@@ -790,24 +793,24 @@ function renderKanban() {
 function applySettingsToForm() {
   const s = settings;
   if (!s || !Object.keys(s).length) return;
-  setVal('sIssuerName', s.issuerName);
-  setVal('sIssuerCeo', s.issuerCeo);
-  setVal('sIssuerBiz', s.issuerBiz);
-  setVal('sIssuerCorp', s.issuerCorp);
-  setVal('sIssuerAddr', s.issuerAddr);
-  setVal('sIssuerAccount', s.issuerAccount);
-  setVal('sMgrName', s.mgrName);
-  setVal('sMgrPhone', s.mgrPhone);
-  setVal('sMgrEmail', s.mgrEmail);
-  setVal('sSurchargeRate', s.surchargeRate);
-  setVal('sOffHourRate', s.offHourRate);
-  setVal('sFullDayHours', s.fullDayHours);
-  setVal('sBizStart', s.bizStart);
-  setVal('sBizEnd', s.bizEnd);
-  setVal('sTgToken', s.tgToken);
-  setVal('sTgChat', s.tgChat);
-  setVal('sNotiEmail', s.notiEmail);
-  setVal('sParkingNotice', s.parkingNotice);
+  setVal('sIssuerName',    s.ISSUER_NAME);
+  setVal('sIssuerCeo',     s.MANAGER_NAME);
+  setVal('sIssuerBiz',     s.ISSUER_BIZ_NO);
+  setVal('sIssuerCorp',    s.ISSUER_CORP_NO);
+  setVal('sIssuerAddr',    s.ISSUER_ADDR);
+  setVal('sIssuerAccount', s.ISSUER_ACCOUNT);
+  setVal('sMgrName',       s.MANAGER_NAME);
+  setVal('sMgrPhone',      s.MANAGER_TEL);
+  setVal('sMgrEmail',      s.MANAGER_EMAIL);
+  setVal('sSurchargeRate', s.SURCHARGE_RATE);
+  setVal('sOffHourRate',   s.OFF_HOUR_RATE);
+  setVal('sFullDayHours',  s.FULL_DAY_HOURS);
+  setVal('sBizStart',      s.BIZ_START);
+  setVal('sBizEnd',        s.BIZ_END);
+  setVal('sTgToken',       s.TELEGRAM_BOT_TOKEN);
+  setVal('sTgChat',        s.TELEGRAM_CHAT_ID);
+  setVal('sNotiEmail',     s.NOTIFICATION_EMAIL);
+  setVal('sParkingNotice', s.PARKING_NOTICE);
 }
 
 function setVal(id, val) {
@@ -817,24 +820,24 @@ function setVal(id, val) {
 
 async function saveSettings() {
   const payload = {
-    issuerName: document.getElementById('sIssuerName').value.trim(),
-    issuerCeo: document.getElementById('sIssuerCeo').value.trim(),
-    issuerBiz: document.getElementById('sIssuerBiz').value.trim(),
-    issuerCorp: document.getElementById('sIssuerCorp').value.trim(),
-    issuerAddr: document.getElementById('sIssuerAddr').value.trim(),
-    issuerAccount: document.getElementById('sIssuerAccount').value.trim(),
-    mgrName: document.getElementById('sMgrName').value.trim(),
-    mgrPhone: document.getElementById('sMgrPhone').value.trim(),
-    mgrEmail: document.getElementById('sMgrEmail').value.trim(),
-    surchargeRate: parseFloat(document.getElementById('sSurchargeRate').value) || 30,
-    offHourRate: parseFloat(document.getElementById('sOffHourRate').value) || 30,
-    fullDayHours: parseFloat(document.getElementById('sFullDayHours').value) || 6,
-    bizStart: document.getElementById('sBizStart').value,
-    bizEnd: document.getElementById('sBizEnd').value,
-    tgToken: document.getElementById('sTgToken').value.trim(),
-    tgChat: document.getElementById('sTgChat').value.trim(),
-    notiEmail: document.getElementById('sNotiEmail').value.trim(),
-    parkingNotice: document.getElementById('sParkingNotice').value.trim(),
+    ISSUER_NAME:        document.getElementById('sIssuerName').value.trim(),
+    MANAGER_NAME:       document.getElementById('sMgrName').value.trim(),
+    ISSUER_REP:         document.getElementById('sIssuerCeo').value.trim(),
+    ISSUER_BIZ_NO:      document.getElementById('sIssuerBiz').value.trim(),
+    ISSUER_CORP_NO:     document.getElementById('sIssuerCorp').value.trim(),
+    ISSUER_ADDR:        document.getElementById('sIssuerAddr').value.trim(),
+    ISSUER_ACCOUNT:     document.getElementById('sIssuerAccount').value.trim(),
+    MANAGER_TEL:        document.getElementById('sMgrPhone').value.trim(),
+    MANAGER_EMAIL:      document.getElementById('sMgrEmail').value.trim(),
+    SURCHARGE_RATE:     String(parseFloat(document.getElementById('sSurchargeRate').value) || 30),
+    OFF_HOUR_RATE:      String(parseFloat(document.getElementById('sOffHourRate').value) || 30),
+    FULL_DAY_HOURS:     String(parseFloat(document.getElementById('sFullDayHours').value) || 6),
+    BIZ_START:          document.getElementById('sBizStart').value,
+    BIZ_END:            document.getElementById('sBizEnd').value,
+    TELEGRAM_BOT_TOKEN: document.getElementById('sTgToken').value.trim(),
+    TELEGRAM_CHAT_ID:   document.getElementById('sTgChat').value.trim(),
+    NOTIFICATION_EMAIL: document.getElementById('sNotiEmail').value.trim(),
+    PARKING_NOTICE:     document.getElementById('sParkingNotice').value.trim(),
   };
   try {
     await callGAS('saveSettings', payload);
@@ -896,8 +899,8 @@ async function callGAS(action, params) {
        'toggleVenue','saveSettings','updateFinalAmt','sendEmail','checkPassword'].includes(action)) {
     const res = await fetch(GAS_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, ...params }),
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action, password: adminPassword, ...params }),
     });
     return res.json();
   }
@@ -908,11 +911,11 @@ async function callGAS(action, params) {
 // 개발용 더미 데이터
 function getDummyData(action, params) {
   if (action === 'checkPassword') return { ok: true };
-  if (action === 'getVenues') return { data: getDummyVenues() };
-  if (action === 'getRequests') return { data: getDummyRequests() };
-  if (action === 'getSettings') return { data: {} };
-  if (action === 'getReport') return { data: { totalRequests: 5, approvedCount: 3, rejectedCount: 1, totalRevenue: 1200000, paidCount: 2, unpaidAmt: 400000, byVenue: [{ name: '드림에듀 아트센터', count: 3, revenue: 900000 }, { name: '본관 대강당', count: 2, revenue: 300000 }] } };
-  return { ok: true, data: {} };
+  if (action === 'getVenues') return { success: true, venues: getDummyVenues() };
+  if (action === 'getRequests') return { success: true, requests: getDummyRequests() };
+  if (action === 'getSettings') return { success: true, settings: {} };
+  if (action === 'getReport') return { success: true, report: { totalRequests: 5, approvedCount: 3, rejectedCount: 1, totalRevenue: 1200000, paidCount: 2, unpaidAmt: 400000, byVenue: [{ name: '드림에듀 아트센터', count: 3, revenue: 900000 }, { name: '본관 대강당', count: 2, revenue: 300000 }] } };
+  return { ok: true, success: true };
 }
 
 function getDummyVenues() {
