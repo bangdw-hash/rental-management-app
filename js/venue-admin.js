@@ -1,6 +1,6 @@
 'use strict';
 
-const GAS_URL = 'YOUR_GAS_WEB_APP_URL';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxWezOw5Nqjc7ppWdqNAPM8EXwvPa57u8JVnkEjM64LN6ymfUR9W1MLW8xaxWCIP-Cs7w/exec';
 
 let currentTab = 'venues';
 let venues = [];
