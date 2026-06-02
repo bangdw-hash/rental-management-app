@@ -528,8 +528,39 @@ function sendEmailAction(data) {
 }
 
 // ══════════════════════════════════════════════════
-//  초기화 헬퍼
+//  초기화 — 웹 앱 배포 후 1회 실행
 // ══════════════════════════════════════════════════
+
+/**
+ * 배포 후 스프레드시트 시트와 기본 데이터를 초기화합니다.
+ * Apps Script 편집기 상단 함수 드롭다운에서 initSheets 선택 후 ▶ 실행.
+ */
+function initSheets() {
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+  // 1. 요청·일정·로그·설정 빈 시트 생성
+  getOrCreateSheet(ss, SH_REQUESTS, [
+    '요청ID','기관명','담당자','연락처','이메일','건물','시설명','사용일','시작시간','종료시간',
+    '인원','목적','기본금액','할증금액','기술관리비','합계금액','최종금액','최종금액수정사유',
+    '상태','견적발행일','예약요청일','승인일','거절일','거절사유','취소일','사용시작일',
+    '사용완료일','계산서발행일','입금완료일','문서제목','비고',
+    '사업자등록모드','사업자등록데이터','사업자등록MIME','사업자등록텍스트',
+    '요청채널','IP','생성일','수정일'
+  ]);
+  getOrCreateSheet(ss, SH_SCHEDULES, [
+    '일정ID','요청ID','유형','날짜','시작시간','종료시간','시간수','금액영향','담당자','메모','생성일'
+  ]);
+  getOrCreateSheet(ss, SH_LOG, ['로그ID','요청ID','일시','단계','메모']);
+
+  // 2. 기본 시설 데이터 입력
+  initVenueSheet(ss);
+
+  // 3. 기본 설정 입력
+  initSettingsSheet(ss);
+
+  Logger.log('✅ initSheets 완료: 시트 5개 초기화, 기본 시설 ' + DEFAULT_VENUES.length + '개 등록');
+  SpreadsheetApp.getUi().alert('초기화 완료!\n시트와 기본 시설 데이터가 등록되었습니다.\n\n이제 웹 앱을 배포하세요.');
+}
 
 function initVenueSheet(ss) {
   var sheet = getOrCreateSheet(ss, SH_VENUES,
