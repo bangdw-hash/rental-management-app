@@ -1,4 +1,4 @@
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbxWezOw5Nqjc7ppWdqNAPM8EXwvPa57u8JVnkEjM64LN6ymfUR9W1MLW8xaxWCIP-Cs7w/exec'; // ← GAS 웹앱 URL로 교체
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbwW8RSbV5TxS-vqn4GorB74q2fjPMPonqTshza1pdqLNi55sHjrx3SkgcQ7LVp-ogs-wA/exec';
 
 // ─── 전역 상태 ──────────────────────────────────
 var allVenues = [];
