@@ -366,24 +366,39 @@
   </div>
 </div>
 
-<!-- ===== PDF 미리보기 (숨김) ===== -->
-<div id="adminPdfTemplate" style="display:none;position:fixed;left:-9999px;top:0;width:794px;background:#fff;padding:40px 48px;box-sizing:border-box;font-family:'KoPubWorld Dotum',sans-serif;font-size:12px;color:#1a1a1a;line-height:1.6">
+<!-- ===== PDF 미리보기 (숨김, html2canvas 캡처용) =====
+     서체 기준: Bold(700)=제목·헤딩·합계  Medium(500)=본문·값  Light(300)=부가설명·각주
+     ===== -->
+<div id="adminPdfTemplate" style="display:none;position:fixed;left:-9999px;top:0;width:794px;background:#fff;padding:40px 48px;box-sizing:border-box;font-family:'KoPubWorld','Apple SD Gothic Neo',sans-serif;font-size:12px;color:#1a1a1a;line-height:1.6;font-weight:500">
+  <!-- 헤더: 문서 제목(Bold) + 발행처(Bold 기관명 / Light 상세) -->
   <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a3c6e;padding-bottom:12px;margin-bottom:20px">
     <div>
-      <div id="apdfTitle" style="font-size:22px;font-weight:700;color:#1a3c6e;margin-bottom:4px"></div>
-      <div id="apdfSubtitle" style="font-size:11px;color:#666"></div>
+      <!-- Bold: 문서 제목 -->
+      <div id="apdfTitle" style="font-size:22px;font-weight:700;color:#1a3c6e;margin-bottom:4px;letter-spacing:3px"></div>
+      <!-- Light: 발행일·요청번호 부가정보 -->
+      <div id="apdfSubtitle" style="font-size:10px;font-weight:300;color:#888"></div>
     </div>
-    <div style="text-align:right;font-size:10px;color:#555">
+    <div style="text-align:right">
+      <!-- Bold: 기관명 -->
       <div style="font-weight:700;font-size:13px;color:#1a3c6e">(재)아세아항공직업전문학교</div>
-      <div>이사장 전영숙</div>
-      <div>사업자번호: 106-82-06370</div>
-      <div>서울특별시 영등포구 당산로32길 16</div>
+      <!-- Medium: 대표자 -->
+      <div style="font-weight:500;font-size:10px;color:#555;margin-top:2px">이사장 전영숙</div>
+      <!-- Light: 사업자번호·주소 -->
+      <div style="font-weight:300;font-size:9.5px;color:#777;margin-top:1px">사업자번호: 106-82-06370</div>
+      <div style="font-weight:300;font-size:9.5px;color:#777">서울특별시 영등포구 당산로32길 16</div>
     </div>
   </div>
+
+  <!-- 본문: 동적 생성 (buildPdfContent에서 Bold/Medium/Light 적용) -->
   <div id="apdfContent" style="margin-bottom:20px"></div>
-  <div style="border-top:1px solid #ccc;padding-top:10px;font-size:10px;color:#777;display:flex;justify-content:space-between">
-    <span>담당: 방시원 차장 010-2055-5883 bangsw@asea.or.kr</span>
-    <span id="apdfDate"></span>
+
+  <!-- 하단 담당자: Bold 이름 / Light 연락처 -->
+  <div style="border-top:1px solid #ccc;padding-top:10px;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <span style="font-weight:700;font-size:10px;color:#1a3c6e">담당: 방시원 차장</span>
+      <span style="font-weight:300;font-size:9.5px;color:#888;margin-left:8px">010-2055-5883 · bangsw@asea.or.kr</span>
+    </div>
+    <span id="apdfDate" style="font-weight:300;font-size:9px;color:#aaa"></span>
   </div>
 </div>
 

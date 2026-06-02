@@ -660,75 +660,94 @@ async function genAdminPDF(id, docType) {
 }
 
 function buildPdfContent(d, docType) {
+  // 서체 기준: Bold(700)=헤딩·합계  Medium(500)=본문값  Light(300)=보조·각주
   const sched = d.scheduleHistory || [];
   const finalAmt = d.finalAmt || d.totalAmt || 0;
 
+  // 공통 셀 스타일
+  const TH = 'padding:5px 8px;font-weight:700;font-size:10px;';
+  const TD = 'padding:5px 8px;font-weight:500;font-size:10.5px;';
+  const TD_LIGHT = 'padding:5px 8px;font-weight:300;font-size:10px;color:#555;';
+
   let rows = '';
   if (docType === 'transaction' && sched.length) {
-    const origSched = sched.filter(s => s.type === 'original');
-    const addedSched = sched.filter(s => s.type === 'added');
-    const removedSched = sched.filter(s => s.type === 'removed');
-    const modifiedSched = sched.filter(s => s.type === 'modified');
-    [...origSched, ...addedSched, ...removedSched, ...modifiedSched].forEach(s => {
+    [...sched.filter(s=>s.type==='original'),
+     ...sched.filter(s=>s.type==='added'),
+     ...sched.filter(s=>s.type==='removed'),
+     ...sched.filter(s=>s.type==='modified')].forEach(s => {
       rows += `<tr>
-        <td>${formatDate(s.date)}</td>
-        <td>${s.startTime || ''}~${s.endTime || ''}</td>
-        <td><span style="color:${schedTypeColor(s.type)}">${schedTypeLabel(s.type)}</span></td>
-        <td style="text-align:right">${s.amt ? (s.amt > 0 ? '+' : '') + fmtMoney(s.amt) + '원' : '-'}</td>
-        <td>${s.note || ''}</td>
+        <td style="${TD}">${formatDate(s.date)}</td>
+        <td style="${TD_LIGHT}">${s.startTime || ''}~${s.endTime || ''}</td>
+        <td style="${TD}"><span style="color:${schedTypeColor(s.type)};font-weight:700">${schedTypeLabel(s.type)}</span></td>
+        <td style="${TD};text-align:right;font-weight:${s.type==='removed'?'300':'700'};color:${s.type==='removed'?'#c0392b':'#1a3c6e'}">${s.amt ? (s.amt > 0 ? '+' : '') + fmtMoney(s.amt) + '원' : '-'}</td>
+        <td style="${TD_LIGHT}">${s.note || ''}</td>
       </tr>`;
     });
   } else {
     rows = `<tr>
-      <td>${d.building || ''} ${d.venueName || ''}</td>
-      <td>${formatDate(d.useDate)} ${d.startTime || ''}~${d.endTime || ''}</td>
-      <td>1</td>
-      <td style="text-align:right">${fmtMoney(finalAmt)}원</td>
-      <td>${d.purpose || ''}</td>
+      <td style="${TD}">${d.building || ''} ${d.venueName || ''}</td>
+      <td style="${TD_LIGHT}">${formatDate(d.useDate)} ${d.startTime || ''}~${d.endTime || ''}</td>
+      <td style="${TD};text-align:center">1</td>
+      <td style="${TD};text-align:right">${fmtMoney(d.baseAmt || finalAmt)}원</td>
+      <td style="${TD_LIGHT}">${d.purpose || ''}</td>
     </tr>`;
-    if (d.surchargeAmt) rows += `<tr><td>할증</td><td></td><td>1</td><td style="text-align:right">${fmtMoney(d.surchargeAmt)}원</td><td></td></tr>`;
-    if (d.techFee) rows += `<tr><td>기술지원비</td><td></td><td>1</td><td style="text-align:right">${fmtMoney(d.techFee)}원</td><td></td></tr>`;
+    if (d.surchargeAmt) rows += `<tr><td style="${TD}">할증료</td><td style="${TD_LIGHT}"></td><td style="${TD};text-align:center">1</td><td style="${TD};text-align:right">${fmtMoney(d.surchargeAmt)}원</td><td style="${TD_LIGHT}">주말·공휴일·업무외 시간</td></tr>`;
+    if (d.techFee) rows += `<tr><td style="${TD}">기술관리비</td><td style="${TD_LIGHT}"></td><td style="${TD};text-align:center">1</td><td style="${TD};text-align:right">${fmtMoney(d.techFee)}원</td><td style="${TD_LIGHT}"></td></tr>`;
   }
 
   const headerCol = docType === 'transaction' ? ['날짜', '시간', '구분', '금액', '비고'] : ['항목', '일시', '수량', '금액', '비고'];
+  const docLabel = docType === 'quote' ? '견적서' : docType === 'transaction' ? '거래내역서' : '청구서';
 
   return `
-    <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">
+    <!-- 수신처 메타 테이블: Bold 라벨 / Medium 값 -->
+    <table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:11px;border:1px solid #ccc">
       <tr style="background:#1a3c6e;color:#fff">
-        <th style="padding:4px 6px;text-align:left;width:25%">신청 기관</th>
-        <td style="padding:4px 6px" colspan="3">${d.orgName || ''}</td>
+        <th style="${TH}width:22%">신청 기관</th>
+        <td style="${TD}" colspan="3">${d.orgName || ''}</td>
       </tr>
       <tr style="background:#f0f4fb">
-        <th style="padding:4px 6px">담당자</th>
-        <td style="padding:4px 6px">${d.contactName || ''} (${d.contactPhone || ''})</td>
-        <th style="padding:4px 6px">인원</th>
-        <td style="padding:4px 6px">${d.persons || ''}명</td>
+        <th style="${TH}">담당자</th>
+        <td style="${TD}">${d.contactName || ''}&nbsp;(${d.contactPhone || ''})</td>
+        <th style="${TH}">인원</th>
+        <td style="${TD}">${d.persons || ''}명</td>
       </tr>
       <tr>
-        <th style="padding:4px 6px">시설</th>
-        <td style="padding:4px 6px" colspan="3">${d.building || ''} ${d.venueName || ''}</td>
+        <th style="${TH}">시설</th>
+        <td style="${TD}" colspan="3">${d.building || ''} ${d.venueName || ''}</td>
+      </tr>
+      <tr>
+        <th style="${TH}">사용 목적</th>
+        <td style="${TD_LIGHT}" colspan="3">${d.purpose || ''}</td>
       </tr>
     </table>
 
-    <table style="width:100%;border-collapse:collapse;font-size:11px">
+    <!-- 요금 명세 테이블: Bold 헤더·합계 / Medium 본문 / Light 보조 -->
+    <div style="font-weight:700;font-size:10px;color:#1a3c6e;margin-bottom:5px;padding-bottom:3px;border-bottom:1.5px solid #1a3c6e">■ 대관 요금 내역</div>
+    <table style="width:100%;border-collapse:collapse;font-size:10.5px">
       <thead>
         <tr style="background:#1a3c6e;color:#fff">
-          ${headerCol.map(h => `<th style="padding:4px 6px;text-align:left">${h}</th>`).join('')}
+          ${headerCol.map(h => `<th style="${TH}text-align:left">${h}</th>`).join('')}
         </tr>
       </thead>
       <tbody>${rows}</tbody>
       <tfoot>
-        <tr style="background:#f8f9fc;font-weight:700">
-          <td colspan="3" style="padding:6px;text-align:right;border-top:2px solid #1a3c6e">합계 (부가세 면세)</td>
-          <td style="padding:6px;text-align:right;border-top:2px solid #1a3c6e;color:#1a3c6e;font-size:13px">${fmtMoney(finalAmt)}원</td>
+        <tr style="background:#edf2f8">
+          <td colspan="3" style="${TH}text-align:right;border-top:2px solid #1a3c6e;color:#1a3c6e">합계 (부가세 면세)</td>
+          <td style="padding:6px 8px;text-align:right;border-top:2px solid #1a3c6e;font-weight:700;font-size:13px;color:#1a3c6e">${fmtMoney(finalAmt)}원</td>
           <td style="border-top:2px solid #1a3c6e"></td>
         </tr>
       </tfoot>
     </table>
 
-    <div style="margin-top:16px;padding:10px;background:#f8f8f8;border-left:3px solid #1a3c6e;font-size:10px">
-      입금 계좌: IBK기업 (재)아세아항공직업전문학교 025-049131-04-042<br>
-      본 ${docType === 'quote' ? '견적서' : docType === 'transaction' ? '거래내역서' : '청구서'}는 부가세 면세 사업장 발행 문서로 공급가액만 표기됩니다.
+    <!-- 입금 계좌: Bold 라벨 / Medium 계좌번호 -->
+    <div style="margin-top:14px;padding:9px 12px;background:#f0f6ff;border-left:3px solid #1a3c6e;border-radius:4px">
+      <span style="font-weight:700;font-size:9.5px;color:#1a3c6e">입금 계좌</span>
+      <span style="font-weight:500;font-size:10.5px;color:#1a3c6e;margin-left:8px">IBK기업  (재)아세아항공직업전문학교  025-049131-04-042</span>
+    </div>
+
+    <!-- 각주: Light -->
+    <div style="margin-top:8px;text-align:right;font-weight:300;font-size:9px;color:#e07b39">
+      ※ 본 ${docLabel}는 부가세 면세 사업장 발행 문서로 공급가액만 표기됩니다.
     </div>`;
 }
 
