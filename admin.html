@@ -216,17 +216,41 @@
     <section id="tabReport" class="admin-tab">
       <div class="tab-header">
         <h2>리포트</h2>
-        <div class="header-tools">
-          <select id="reportPeriod" onchange="loadReport()">
-            <option value="month">이번 달</option>
-            <option value="quarter">이번 분기</option>
-            <option value="year">올해</option>
-          </select>
+        <div class="header-tools rpt-date-wrap">
+          <label style="font-size:0.78rem;font-weight:700;color:#4a5568;margin-bottom:0;">기간</label>
+          <input type="date" id="rptFrom" style="width:130px;">
+          <span style="font-weight:300;font-size:0.82rem;">~</span>
+          <input type="date" id="rptTo" style="width:130px;">
+          <button class="btn-primary btn-sm" onclick="loadReport()">조회</button>
         </div>
       </div>
-      <div id="reportContent">
-        <div class="report-stats" id="reportStats"></div>
-        <div class="report-charts mt-3" id="reportCharts"></div>
+
+      <!-- 종합 현황 -->
+      <div class="report-stats" id="reportStats"></div>
+
+      <!-- 로그 테이블 + 리포트 작성 버튼 -->
+      <div class="card mt-2" id="reportLogCard" style="display:none;">
+        <div class="card-title" style="justify-content:space-between;">
+          <span>조회 내역</span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <label style="font-size:0.78rem;font-weight:500;cursor:pointer;">
+              <input type="checkbox" id="rptSelectAll" onchange="toggleReportSelectAll(this.checked)"> 전체선택
+            </label>
+            <button class="btn-primary btn-sm" id="rptWriteBtn" onclick="openReportModal()" disabled>세부리포트 작성하기</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th style="width:36px;"></th>
+                <th>요청번호</th><th>기관명</th><th>시설</th>
+                <th>사용일시</th><th>인원</th><th>금액</th><th>상태</th><th>접수일</th>
+              </tr>
+            </thead>
+            <tbody id="reportLogBody"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -404,6 +428,28 @@
 
 <!-- 토스트 알림 -->
 <div id="toast" class="toast" style="display:none"></div>
+
+<!-- ===== 리포트 모달 ===== -->
+<div class="modal-overlay" id="reportModal" style="display:none;">
+  <div class="modal-box" style="max-width:780px;width:95%;max-height:90vh;display:flex;flex-direction:column;">
+    <div class="modal-header">
+      <h3>세부 리포트</h3>
+      <button class="modal-close" onclick="closeReportModal()">✕</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto;flex:1;">
+      <div id="rptModalSummary"></div>
+      <div style="margin-top:16px;">
+        <div style="font-size:0.78rem;font-weight:700;color:#4a5568;margin-bottom:6px;">📋 텍스트 전문 (복사 가능)</div>
+        <textarea id="rptTextArea" readonly style="width:100%;height:320px;font-family:monospace;font-size:0.78rem;line-height:1.6;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;padding:12px;resize:vertical;"></textarea>
+        <button class="btn-secondary btn-sm" style="margin-top:6px;" onclick="copyReportText()">📋 클립보드 복사</button>
+      </div>
+    </div>
+    <div class="modal-footer" style="padding:14px 20px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:10px;">
+      <button class="btn-cancel" onclick="closeReportModal()">닫기</button>
+      <button class="btn-primary" onclick="downloadReportPDF()">📄 PDF 다운로드</button>
+    </div>
+  </div>
+</div>
 
 <script src="js/venue-admin.js"></script>
 </body>

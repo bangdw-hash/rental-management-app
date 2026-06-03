@@ -14,6 +14,41 @@ let personRateCount = 0;
 let adminPassword = '';
 
 // ─────────────────────────────────────────
+//  필드 정규화
+// ─────────────────────────────────────────
+function normalizeRequest(r) {
+  const sd = (r.startDateTime || '').split(' ');
+  const ed = (r.endDateTime   || '').split(' ');
+  return {
+    ...r,
+    reqId:        r.id,
+    contactName:  r.managerName  || '',
+    contactPhone: r.tel          || '',
+    contactEmail: r.email        || '',
+    useDate:      sd[0] || '',
+    startTime:    sd[1] ? sd[1].substring(0,5) : '',
+    endTime:      ed[1] ? ed[1].substring(0,5) : '',
+    totalAmt:     Number(r.totalAmount) || 0,
+    finalAmt:     Number(r.finalAmount || r.totalAmount) || 0,
+    baseAmt:      Number(r.baseRate)   || 0,
+    surchargeAmt: Number(r.surcharge)  || 0,
+    finalAmtNote: r.adjustReason || '',
+    requestedAt:  r.quoteDate    || r.timestamp || '',
+    quoteIssuedAt:r.quoteDate    || '',
+    approvedAt:   r.approvedDate || '',
+    rejectedAt:   r.rejectedDate || '',
+    inUseAt:      r.startDate    || '',
+    completedAt:  r.completedDate|| '',
+    invoicedAt:   r.invoicedDate || '',
+    paidAt:       r.paidDate     || '',
+    bizRegMode:   r.bizFileData ? 'file' : (r.bizText ? 'text' : 'skip'),
+    bizRegData:   r.bizFileData  || '',
+    bizRegMime:   r.bizFileType  || '',
+    bizRegText:   r.bizText      || '',
+  };
+}
+
+// ─────────────────────────────────────────
 //  인증
 // ─────────────────────────────────────────
 function doLogin() {
@@ -69,7 +104,7 @@ async function loadVenues() {
 async function loadRequests() {
   try {
     const r = await callGAS('getRequests', {});
-    requests = r.requests || [];
+    requests = (r.requests || []).map(normalizeRequest);
     updateReqBadge();
   } catch (e) { requests = []; }
 }
@@ -82,12 +117,17 @@ async function loadSettings() {
   } catch (e) { settings = {}; }
 }
 
-async function loadReport() {
-  const period = document.getElementById('reportPeriod').value;
-  try {
-    const r = await callGAS('getReport', { period });
-    renderReport(r.report || {});
-  } catch (e) { renderReport({}); }
+function loadReport() {
+  const from = (document.getElementById('rptFrom') || {}).value || '';
+  const to   = (document.getElementById('rptTo')   || {}).value || '';
+
+  const filtered = requests.filter(r => {
+    const d = (r.useDate || r.timestamp || '').substring(0, 10);
+    return (!from || d >= from) && (!to || d <= to);
+  });
+
+  renderReportStats(filtered, from, to);
+  renderReportLog(filtered);
 }
 
 function updateReqBadge() {
@@ -849,36 +889,260 @@ async function saveSettings() {
 // ─────────────────────────────────────────
 //  리포트
 // ─────────────────────────────────────────
-function renderReport(data) {
+function renderReportStats(list, from, to) {
   const stats = document.getElementById('reportStats');
-  const charts = document.getElementById('reportCharts');
+  if (!list.length) {
+    stats.innerHTML = '<div class="text-muted" style="text-align:center;padding:20px;">선택한 기간에 데이터가 없습니다.</div>';
+    return;
+  }
+
+  const total      = list.length;
+  const approved   = list.filter(r => ['APPROVED','IN_USE','COMPLETED','INVOICED','PAID'].includes(r.status)).length;
+  const rejected   = list.filter(r => r.status === 'REJECTED').length;
+  const paidList   = list.filter(r => r.status === 'PAID');
+  const paidAmt    = paidList.reduce((s, r) => s + (r.finalAmt || 0), 0);
+  const totalAmt   = list.reduce((s, r) => s + (r.finalAmt || 0), 0);
+  const unpaid     = totalAmt - paidAmt;
+
+  const periodLabel = from && to ? from + ' ~ ' + to : '전체';
 
   stats.innerHTML = `
-    <div class="rstat"><div class="rstat-val">${data.totalRequests || 0}</div><div class="rstat-label">전체 요청</div></div>
-    <div class="rstat"><div class="rstat-val">${data.approvedCount || 0}</div><div class="rstat-label">승인 건수</div></div>
-    <div class="rstat"><div class="rstat-val">${data.rejectedCount || 0}</div><div class="rstat-label">거절 건수</div></div>
-    <div class="rstat"><div class="rstat-val">${fmtMoney(data.totalRevenue || 0)}원</div><div class="rstat-label">총 대관료</div></div>
-    <div class="rstat"><div class="rstat-val">${data.paidCount || 0}</div><div class="rstat-label">입금 완료</div></div>
-    <div class="rstat"><div class="rstat-val">${fmtMoney(data.unpaidAmt || 0)}원</div><div class="rstat-label">미수금</div></div>`;
+    <div class="rpt-stats-header">
+      <span style="font-weight:700;font-size:0.88rem;color:#1e3a5f;">📊 종합 현황 — ${periodLabel}</span>
+    </div>
+    <div class="rpt-stats-grid">
+      <div class="rstat"><div class="rstat-val">${total}</div><div class="rstat-label">전체 건수</div></div>
+      <div class="rstat"><div class="rstat-val">${approved}</div><div class="rstat-label">승인</div></div>
+      <div class="rstat"><div class="rstat-val" style="color:#c0392b;">${rejected}</div><div class="rstat-label">거절/취소</div></div>
+      <div class="rstat"><div class="rstat-val">${fmtMoney(totalAmt)}원</div><div class="rstat-label">총 대관료</div></div>
+      <div class="rstat"><div class="rstat-val" style="color:#1e7e34;">${fmtMoney(paidAmt)}원</div><div class="rstat-label">입금 완료</div></div>
+      <div class="rstat"><div class="rstat-val" style="color:#e07b39;">${fmtMoney(unpaid)}원</div><div class="rstat-label">미수금</div></div>
+    </div>`;
+}
 
-  const venueStats = data.byVenue || [];
-  if (venueStats.length) {
-    const maxCnt = Math.max(...venueStats.map(v => v.count || 0), 1);
-    charts.innerHTML = `
-      <div class="report-section-title">시설별 이용 현황</div>
-      <div class="bar-chart">
-        ${venueStats.map(v => `
-          <div class="bar-row">
-            <div class="bar-label">${v.name}</div>
-            <div class="bar-track">
-              <div class="bar-fill" style="width:${Math.round((v.count / maxCnt) * 100)}%"></div>
-            </div>
-            <div class="bar-val">${v.count}건 / ${fmtMoney(v.revenue || 0)}원</div>
-          </div>`).join('')}
-      </div>`;
-  } else {
-    charts.innerHTML = '<div class="text-muted">데이터가 없습니다.</div>';
-  }
+function renderReportLog(list) {
+  const card = document.getElementById('reportLogCard');
+  const tbody = document.getElementById('reportLogBody');
+  if (!card || !tbody) return;
+
+  if (!list.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  tbody.innerHTML = list
+    .slice().sort((a,b) => (a.requestedAt||'').localeCompare(b.requestedAt||''))
+    .map(r => `
+      <tr>
+        <td><input type="checkbox" class="rpt-chk" value="${r.id}" onchange="updateReportWriteBtn()"></td>
+        <td class="monospace">${r.reqId || r.id || ''}</td>
+        <td>${r.orgName || ''}</td>
+        <td>${r.venueName || ''}</td>
+        <td style="white-space:nowrap;">${r.useDate || ''} ${r.startTime||''}${r.startTime&&r.endTime?'~'+r.endTime:''}</td>
+        <td>${r.persons||''}명</td>
+        <td>${fmtMoney(r.finalAmt||0)}원</td>
+        <td><span class="status-badge s-${r.status}">${statusLabel(r.status)}</span></td>
+        <td>${formatDate(r.requestedAt)}</td>
+      </tr>`).join('');
+
+  document.getElementById('rptSelectAll').checked = false;
+  updateReportWriteBtn();
+}
+
+function toggleReportSelectAll(checked) {
+  document.querySelectorAll('.rpt-chk').forEach(c => c.checked = checked);
+  updateReportWriteBtn();
+}
+
+function updateReportWriteBtn() {
+  const any = document.querySelectorAll('.rpt-chk:checked').length > 0;
+  const btn = document.getElementById('rptWriteBtn');
+  if (btn) btn.disabled = !any;
+}
+
+function openReportModal() {
+  const ids = [...document.querySelectorAll('.rpt-chk:checked')].map(c => c.value);
+  if (!ids.length) return;
+  const from = (document.getElementById('rptFrom')||{}).value || '';
+  const to   = (document.getElementById('rptTo')  ||{}).value || '';
+  const selected = requests.filter(r => ids.includes(r.id))
+    .slice().sort((a,b)=>(a.requestedAt||'').localeCompare(b.requestedAt||''));
+
+  // 요약 HTML
+  const total    = selected.length;
+  const totalAmt = selected.reduce((s,r)=>s+(r.finalAmt||0),0);
+  const paidAmt  = selected.filter(r=>r.status==='PAID').reduce((s,r)=>s+(r.finalAmt||0),0);
+  document.getElementById('rptModalSummary').innerHTML = `
+    <div class="rpt-stats-header"><span style="font-weight:700;font-size:0.88rem;color:#1e3a5f;">📊 선택 리포트 — ${from||'?'} ~ ${to||'?'}</span></div>
+    <div class="rpt-stats-grid" style="margin-bottom:12px;">
+      <div class="rstat"><div class="rstat-val">${total}</div><div class="rstat-label">선택 건수</div></div>
+      <div class="rstat"><div class="rstat-val">${fmtMoney(totalAmt)}원</div><div class="rstat-label">총 금액</div></div>
+      <div class="rstat"><div class="rstat-val" style="color:#1e7e34;">${fmtMoney(paidAmt)}원</div><div class="rstat-label">입금 완료</div></div>
+    </div>`;
+
+  // 텍스트 전문 생성
+  document.getElementById('rptTextArea').value = generateReportText(selected, from, to);
+
+  // 현재 선택 저장 (PDF용)
+  window._rptSelected = selected;
+  window._rptFrom = from;
+  window._rptTo   = to;
+
+  document.getElementById('reportModal').style.display = 'flex';
+}
+
+function closeReportModal() {
+  document.getElementById('reportModal').style.display = 'none';
+}
+
+function copyReportText() {
+  const ta = document.getElementById('rptTextArea');
+  ta.select();
+  document.execCommand('copy');
+  showToast('클립보드에 복사되었습니다.');
+}
+
+function generateReportText(list, from, to) {
+  const now = new Date().toLocaleString('ko-KR');
+  const total    = list.length;
+  const totalAmt = list.reduce((s,r)=>s+(r.finalAmt||0),0);
+  const paidAmt  = list.filter(r=>r.status==='PAID').reduce((s,r)=>s+(r.finalAmt||0),0);
+  const unpaid   = totalAmt - paidAmt;
+  const divider  = '─'.repeat(60);
+
+  let txt = '';
+  txt += '(재)아세아항공직업전문학교 대관업무 리포트\n';
+  txt += divider + '\n';
+  txt += `조회 기간 : ${from||'?'} ~ ${to||'?'}\n`;
+  txt += `출력 일시 : ${now}\n`;
+  txt += divider + '\n';
+  txt += `[종합 현황]\n`;
+  txt += `  전체 건수   : ${total}건\n`;
+  txt += `  총 대관료   : ${fmtMoney(totalAmt)}원\n`;
+  txt += `  입금 완료   : ${fmtMoney(paidAmt)}원\n`;
+  txt += `  미 수 금     : ${fmtMoney(unpaid)}원\n`;
+  txt += divider + '\n\n';
+
+  list.forEach((r, idx) => {
+    txt += `[${idx+1}/${total}] ${r.reqId || r.id}  (${statusLabel(r.status)})\n`;
+    txt += `  기   관 : ${r.orgName || ''}\n`;
+    txt += `  담당자 : ${r.contactName||r.managerName||''} ${r.contactPhone||r.tel||''}\n`;
+    txt += `  이메일 : ${r.contactEmail||r.email||''}\n`;
+    txt += `  시   설 : ${r.building||''} ${r.venueName||''}\n`;
+    txt += `  일   시 : ${r.useDate||''} ${r.startTime||''}~${r.endTime||''}\n`;
+    txt += `  인   원 : ${r.persons||''}명\n`;
+    txt += `  목   적 : ${r.purpose||''}\n`;
+    txt += `  기본대관료 : ${fmtMoney(r.baseAmt||0)}원\n`;
+    txt += `  할   증 : ${fmtMoney(r.surchargeAmt||0)}원\n`;
+    txt += `  기술관리비 : ${fmtMoney(r.techFee||0)}원\n`;
+    txt += `  최종금액   : ${fmtMoney(r.finalAmt||0)}원\n`;
+    if (r.finalAmtNote) txt += `  금액비고   : ${r.finalAmtNote}\n`;
+    txt += `  접수일  : ${r.requestedAt||''}\n`;
+    if (r.approvedAt)  txt += `  승인일  : ${r.approvedAt}\n`;
+    if (r.rejectedAt)  txt += `  거절일  : ${r.rejectedAt}\n`;
+    if (r.completedAt) txt += `  완료일  : ${r.completedAt}\n`;
+    if (r.paidAt)      txt += `  입금일  : ${r.paidAt}\n`;
+    if (r.adminMemo)   txt += `  관리자메모: ${r.adminMemo}\n`;
+    txt += '\n';
+  });
+
+  txt += divider + '\n';
+  txt += `(재)아세아항공직업전문학교 · 대관담당: 방시원 차장 010-2055-5883\n`;
+  return txt;
+}
+
+async function downloadReportPDF() {
+  const list  = window._rptSelected || [];
+  const from  = window._rptFrom || '';
+  const to    = window._rptTo   || '';
+  if (!list.length) return;
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+
+  const pageW = 210, margin = 14;
+  const contentW = pageW - margin * 2;
+  let y = margin;
+
+  const nl = (extra = 0) => { y += 5 + extra; if (y > 270) { doc.addPage(); y = margin; } };
+  const txt = (text, x, size=9, style='normal', color=[30,58,95]) => {
+    doc.setFontSize(size); doc.setFont('helvetica', style); doc.setTextColor(...color);
+    doc.text(String(text||''), x, y);
+  };
+  const line = (c=[200,210,220]) => { doc.setDrawColor(...c); doc.line(margin, y, pageW-margin, y); nl(); };
+
+  // 제목
+  doc.setFillColor(30,58,95); doc.rect(0,0,210,22,'F');
+  doc.setFontSize(14); doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255);
+  doc.text('ASEA Venue Report', margin, 14);
+  y = 26;
+
+  // 기간/출력일
+  const now = new Date().toLocaleDateString('ko-KR');
+  txt(`Period: ${from||'?'} ~ ${to||'?'}  /  Printed: ${now}`, margin, 8, 'normal', [100,116,139]);
+  nl(3); line();
+
+  // 종합 현황
+  const totalAmt = list.reduce((s,r)=>s+(r.finalAmt||0),0);
+  const paidAmt  = list.filter(r=>r.status==='PAID').reduce((s,r)=>s+(r.finalAmt||0),0);
+  doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(30,58,95);
+  doc.text('Summary', margin, y); nl();
+  const summaryData = [
+    ['Total', `${list.length} cases`],
+    ['Total Amount', `KRW ${fmtMoney(totalAmt)}`],
+    ['Paid', `KRW ${fmtMoney(paidAmt)}`],
+    ['Unpaid', `KRW ${fmtMoney(totalAmt-paidAmt)}`],
+  ];
+  summaryData.forEach(([k,v]) => {
+    txt(k+':', margin+2, 8, 'bold', [74,85,104]);
+    txt(v, margin+36, 8, 'normal', [45,55,72]);
+    nl();
+  });
+  nl(2); line();
+
+  // 각 건별 상세
+  list.forEach((r, idx) => {
+    if (y > 240) { doc.addPage(); y = margin; }
+
+    // 건 헤더
+    doc.setFillColor(237,242,248); doc.rect(margin, y-4, contentW, 7,'F');
+    txt(`[${idx+1}] ${r.reqId||r.id}  ${statusLabel(r.status)}`, margin+2, 9, 'bold', [30,58,95]);
+    nl(3);
+
+    const rows = [
+      ['Organization', r.orgName||''],
+      ['Contact', `${r.contactName||r.managerName||''}  ${r.contactPhone||r.tel||''}`],
+      ['Email', r.contactEmail||r.email||''],
+      ['Venue', `${r.building||''} ${r.venueName||''}`],
+      ['Date/Time', `${r.useDate||''} ${r.startTime||''}~${r.endTime||''}`],
+      ['Persons', `${r.persons||''}명`],
+      ['Purpose', r.purpose||''],
+      ['Base Rate', `KRW ${fmtMoney(r.baseAmt||0)}`],
+      ['Surcharge', `KRW ${fmtMoney(r.surchargeAmt||0)}`],
+      ['Tech Fee', `KRW ${fmtMoney(r.techFee||0)}`],
+      ['Final Amount', `KRW ${fmtMoney(r.finalAmt||0)}`],
+    ];
+    if (r.approvedAt)  rows.push(['Approved', r.approvedAt]);
+    if (r.paidAt)      rows.push(['Paid', r.paidAt]);
+    if (r.adminMemo)   rows.push(['Memo', r.adminMemo]);
+
+    rows.forEach(([k,v]) => {
+      if (y > 268) { doc.addPage(); y = margin; }
+      txt(k+':', margin+2, 8, 'bold', [74,85,104]);
+      const lines = doc.splitTextToSize(String(v), contentW - 38);
+      lines.forEach((line, li) => {
+        txt(line, margin+38, 8, 'normal', [45,55,72]);
+        if (li < lines.length - 1) nl();
+      });
+      nl();
+    });
+    nl(2);
+    doc.setDrawColor(220,230,240); doc.line(margin, y-2, pageW-margin, y-2);
+    nl(2);
+  });
+
+  // 파일명: 기존 규칙 + 기간
+  const periodTag = from && to ? `_${from.replace(/-/g,'')}-${to.replace(/-/g,'')}` : '';
+  const filename = `아세아대관리포트${periodTag}_${list.length}건.pdf`;
+  doc.save(filename);
 }
 
 // ─────────────────────────────────────────
@@ -980,4 +1244,13 @@ function showToast(msg, duration = 3000) {
 // 페이지 로드
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('loginPw').focus();
+
+  // 리포트 기간 초기값: 이번 달 1일 ~ 오늘
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  const today = now.toISOString().split('T')[0];
+  const rptFrom = document.getElementById('rptFrom');
+  const rptTo   = document.getElementById('rptTo');
+  if (rptFrom) rptFrom.value = firstDay;
+  if (rptTo)   rptTo.value   = today;
 });

@@ -764,3 +764,12 @@ select { cursor: pointer; }
 .multi-date-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; min-height: 28px; }
 .date-chip { background: #1e3a5f; color: white; font-size: 0.74rem; font-weight: 700; padding: 4px 10px; border-radius: 14px; cursor: pointer; transition: opacity 0.15s; }
 .date-chip:hover { opacity: 0.75; }
+
+/* ─── 리포트 ─── */
+.rpt-date-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rpt-stats-header { margin-bottom: 10px; }
+.rpt-stats-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+.rpt-stats-grid .rstat { min-width: 110px; flex: 1; background: #f8fafc; border-radius: 10px; padding: 12px 14px; text-align: center; border: 1px solid #e2e8f0; }
+.rpt-stats-grid .rstat-val { font-size: 1.1rem; font-weight: 700; color: #1e3a5f; }
+.rpt-stats-grid .rstat-label { font-size: 0.72rem; font-weight: 300; color: #718096; margin-top: 2px; }
+.modal-footer { padding: 14px 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px; }
