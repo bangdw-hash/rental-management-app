@@ -246,8 +246,7 @@ select { cursor: pointer; }
   background: #fafcff; cursor: pointer; transition: all 0.15s;
 }
 .venue-card:hover   { border-color: #2d6a9f; box-shadow: 0 2px 8px rgba(45,106,159,0.1); }
-.venue-card.selected { border-color: #2d6a9f; background: #edf2fb; }
-.venue-card.separate { border-color: #f0d080; background: #fffbf0; cursor: default; opacity: 0.8; }
+.venue-card.separate { border-color: #f0d080; background: #fffbf0; opacity: 0.85; }
 .venue-card .vc-name { font-weight: 700; font-size: 0.88rem; color: #2d3748; }
 .venue-card .vc-floor { font-weight: 300; font-size: 0.74rem; color: #718096; margin-top: 2px; }
 .venue-card .vc-price { font-weight: 500; font-size: 0.79rem; color: #2d6a9f; margin-top: 5px; }
