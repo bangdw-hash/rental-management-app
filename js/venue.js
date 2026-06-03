@@ -8,11 +8,20 @@ var selectedDocTitle = '대관료 견적서';
 var activeDocBtn = 'docBtn1';
 var bizFileData = { type: '', data: '', name: '' };
 var bizMode = 'file';
+var dateMode = 'single';
+var selectedDates = [];
+var calYear = new Date().getFullYear();
+var calMonth = new Date().getMonth();
 
 // ─── 초기화 ─────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
   var today = new Date().toISOString().split('T')[0];
   document.getElementById('useDate').value = today;
+  document.getElementById('rangeStart').value = today;
+  document.getElementById('rangeEnd').value = today;
+  calYear = new Date().getFullYear();
+  calMonth = new Date().getMonth();
+  renderCalendar();
   loadData();
 });
 
@@ -144,13 +153,13 @@ function renderBuildingSelector() {
   });
   var wrap = document.getElementById('buildingSelector');
   wrap.innerHTML = buildings.map(function(b) {
-    return '<button class="building-btn" onclick="selectBuilding(\'' + b.replace(/'/g, "\\'") + '\")">' + b + '</button>';
+    return '<button class="building-btn" onclick="selectBuilding(this,\'' + b.replace(/'/g, "\\'") + '\')">' + b + '</button>';
   }).join('');
 }
 
-function selectBuilding(bname) {
+function selectBuilding(btn, bname) {
   document.querySelectorAll('.building-btn').forEach(function(b) { b.classList.remove('active'); });
-  event.target.classList.add('active');
+  btn.classList.add('active');
 
   var venues = allVenues.filter(function(v) { return v.building === bname; });
   var grid = document.getElementById('venueGrid');
@@ -161,8 +170,7 @@ function selectBuilding(bname) {
         ? v.personRates[0].rate.toLocaleString() + '원~'
         : v.baseRate > 0 ? v.baseRate.toLocaleString() + '원/2시간' : '단가 미정';
     return '<div class="venue-card' + (v.separate ? ' separate' : '') + '" ' +
-      (v.separate ? '' : 'onclick="selectVenue(' + v.id + ')"') +
-      ' data-id="' + v.id + '">' +
+      'onclick="selectVenue(' + v.id + ')" data-id="' + v.id + '">' +
       '<div class="vc-name">' + v.name + (v.isNew ? ' <span class="badge badge-new">신규</span>' : '') + '</div>' +
       '<div class="vc-floor">' + v.floor + (v.area > 0 ? ' · ' + v.area + '평' : '') + (v.staffRequired ? ' · 관리인원상주' : '') + '</div>' +
       '<div class="vc-price">' + priceText + (v.techFee > 0 ? ' + 기술관리비 ' + v.techFee.toLocaleString() + '원' : '') + '</div>' +
@@ -181,69 +189,64 @@ function selectVenue(id) {
 
 // ─── 금액 계산 ────────────────────────────────────
 function updatePriceCalc() {
-  var priceBox  = document.getElementById('priceBox');
-  var sepBox    = document.getElementById('separateBox');
+  var priceBox = document.getElementById('priceBox');
+  var sepBox   = document.getElementById('separateBox');
   priceBox.style.display = 'none';
   sepBox.style.display   = 'none';
-
   if (!selectedVenue) return;
   if (selectedVenue.separate) { sepBox.style.display = ''; return; }
 
-  var dateVal  = document.getElementById('useDate').value;
   var startVal = document.getElementById('startTime').value;
   var endVal   = document.getElementById('endTime').value;
-  var persons  = parseInt(document.getElementById('persons').value) || 0;
-  if (!dateVal || !startVal || !endVal) return;
+  var persons  = getPersonsValue();
+  if (!startVal || !endVal) return;
 
-  var startDT = new Date(dateVal + 'T' + startVal);
-  var endDT   = new Date(dateVal + 'T' + endVal);
-  if (endDT <= startDT) return;
+  var dates = getActiveDates();
+  if (!dates.length) return;
 
-  var hours       = (endDT - startDT) / 3600000;
-  var bizStart    = parseInt(settings.BIZ_START || 9);
-  var bizEnd      = parseInt(settings.BIZ_END   || 18);
-  var fullDayHrs  = parseInt(settings.FULL_DAY_HOURS || 6);
-  var surchargeRt = parseInt(settings.SURCHARGE_RATE || 30) / 100;
+  var bizStart   = parseInt(settings.BIZ_START    || 9);
+  var bizEnd     = parseInt(settings.BIZ_END      || 18);
+  var fullDayHrs = parseInt(settings.FULL_DAY_HOURS || 6);
+  var surchargeRt= parseInt(settings.SURCHARGE_RATE || 30) / 100;
 
-  // 요금 산출
-  var rate = getApplicableRate(selectedVenue, persons);
+  var rate        = getApplicableRate(selectedVenue, persons);
   var basePerSlot = rate.baseRate;
   var techFee     = rate.techFee;
 
-  var slots, baseTotal;
-  if (hours >= fullDayHrs) {
-    slots     = fullDayHrs / 2;
-    baseTotal = basePerSlot * slots;
-  } else {
-    slots     = Math.ceil(hours / 2);
-    baseTotal = basePerSlot * slots;
-  }
+  // 날짜별 기본료 합산 (할증 날짜 별도 처리)
+  var sp = startVal.split(':'), ep = endVal.split(':');
+  var startH = parseInt(sp[0]) + parseInt(sp[1])/60;
+  var endH   = parseInt(ep[0]) + parseInt(ep[1])/60;
+  if (endH <= startH) return;
 
-  // 할증 여부 판단
-  var startH = startDT.getHours() + startDT.getMinutes() / 60;
-  var endH   = endDT.getHours()   + endDT.getMinutes()   / 60;
-  var isHoliday = isHolidayOrWeekend(startDT);
-  var isOutside = startH < bizStart || endH > bizEnd;
-  var needSurcharge = isHoliday || isOutside;
-  var surchargeAmt  = needSurcharge ? Math.round(baseTotal * surchargeRt) : 0;
-  var total = baseTotal + surchargeAmt + techFee;
+  var hours = endH - startH;
+  var slots = hours >= fullDayHrs ? fullDayHrs / 2 : Math.ceil(hours / 2);
 
-  // 표시
+  var baseDays = 0, surchargeDays = 0;
+  dates.forEach(function(d) {
+    var dt = new Date(d + 'T' + startVal);
+    if (isHolidayOrWeekend(dt) || startH < bizStart || endH > bizEnd) surchargeDays++;
+    else baseDays++;
+  });
+
+  var baseTotal     = basePerSlot * slots * dates.length;
+  var surchargeAmt  = Math.round(basePerSlot * slots * surchargeDays * surchargeRt);
+  var total         = baseTotal + surchargeAmt + techFee;
+
   priceBox.style.display = '';
-  var baseLabel = '기본 대관료 (' + (hours >= fullDayHrs ? '종일 ' + fullDayHrs + 'h' : slots + '슬롯 · ' + hours.toFixed(1) + 'h') + ')';
-  document.getElementById('baseLabel').textContent  = baseLabel;
-  document.getElementById('baseAmount').textContent = fmtMoney(baseTotal) + '원';
+  var dateLabel = dates.length > 1 ? dates.length + '일 × ' : '';
+  document.getElementById('baseLabel').textContent     = '기본 대관료 (' + dateLabel + slots + '슬롯·' + hours.toFixed(1) + 'h)';
+  document.getElementById('baseAmount').textContent    = fmtMoney(baseTotal) + '원';
   document.getElementById('techFeeAmount').textContent = fmtMoney(techFee) + '원';
   document.getElementById('totalAmount').textContent   = fmtMoney(total) + '원';
 
-  var surRow = document.getElementById('surchargeRow');
+  var surRow  = document.getElementById('surchargeRow');
   var surWarn = document.getElementById('surchargeWarn');
-  if (needSurcharge) {
+  if (surchargeAmt > 0) {
     surRow.style.display = '';
     document.getElementById('surchargeAmount').textContent = fmtMoney(surchargeAmt) + '원';
     surWarn.style.display = '';
-    surWarn.textContent = isHoliday ? '⚠ 공휴일·주말 적용 — 기본료의 ' + (surchargeRt * 100) + '% 할증'
-                                    : '⚠ 시간외 사용 적용 — 기본료의 ' + (surchargeRt * 100) + '% 할증';
+    surWarn.textContent = '⚠ 할증 적용 (' + surchargeDays + '일): 기본료의 ' + (surchargeRt*100) + '% 추가';
   } else {
     surRow.style.display = 'none';
     surWarn.style.display = 'none';
@@ -251,8 +254,36 @@ function updatePriceCalc() {
 
   var note = '';
   if (rate.rangeLabel) note += '인원 기준: ' + rate.rangeLabel + ' | ';
-  note += '슬롯당 단가: ' + fmtMoney(basePerSlot) + '원 (기본 2시간 기준)';
+  note += '슬롯당 단가: ' + fmtMoney(basePerSlot) + '원';
   document.getElementById('priceNote').textContent = note;
+}
+
+function getPersonsValue() {
+  if (dateMode === 'single') return parseInt(document.getElementById('persons').value) || 0;
+  if (dateMode === 'range')  return parseInt(document.getElementById('personsRange').value) || 0;
+  return parseInt(document.getElementById('personsMulti').value) || 0;
+}
+
+function getActiveDates() {
+  if (dateMode === 'single') {
+    var d = document.getElementById('useDate').value;
+    return d ? [d] : [];
+  }
+  if (dateMode === 'range') {
+    var s = document.getElementById('rangeStart').value;
+    var e = document.getElementById('rangeEnd').value;
+    if (!s || !e || e < s) return [];
+    var arr = [], cur = new Date(s);
+    var end = new Date(e);
+    while (cur <= end) {
+      arr.push(cur.toISOString().split('T')[0]);
+      cur.setDate(cur.getDate() + 1);
+    }
+    var info = document.getElementById('rangeInfo');
+    if (info) info.textContent = arr.length + '일 선택됨';
+    return arr;
+  }
+  return selectedDates.slice().sort();
 }
 
 function getApplicableRate(venue, persons) {
@@ -274,13 +305,107 @@ function isHolidayOrWeekend(date) {
   return d === 0 || d === 6;
 }
 
+// ─── 날짜 모드 전환 ─────────────────────────────────
+function setDateMode(mode) {
+  dateMode = mode;
+  ['Single','Range','Multi'].forEach(function(m) {
+    var wrap = document.getElementById('date' + m + 'Wrap');
+    var btn  = document.getElementById('dm' + m);
+    if (wrap) wrap.style.display = (m.toLowerCase() === mode) ? '' : 'none';
+    if (btn)  btn.classList.toggle('active', m.toLowerCase() === mode);
+  });
+  updatePriceCalc();
+}
+
+// ─── 달력 렌더 (복수 날짜) ───────────────────────────
+function renderCalendar() {
+  var label = document.getElementById('calMonthLabel');
+  var grid  = document.getElementById('calGrid');
+  if (!label || !grid) return;
+
+  label.textContent = calYear + '년 ' + (calMonth + 1) + '월';
+
+  var days = ['일','월','화','수','목','금','토'];
+  var html = '<div class="cal-row cal-head">' + days.map(function(d) {
+    return '<div class="cal-cell cal-hd">' + d + '</div>';
+  }).join('') + '</div>';
+
+  var first = new Date(calYear, calMonth, 1).getDay();
+  var total = new Date(calYear, calMonth + 1, 0).getDate();
+  var today = new Date().toISOString().split('T')[0];
+
+  html += '<div class="cal-row">';
+  for (var i = 0; i < first; i++) html += '<div class="cal-cell"></div>';
+  for (var d = 1; d <= total; d++) {
+    var dateStr = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    var dow = new Date(dateStr).getDay();
+    var cls = 'cal-cell cal-day';
+    if (dow === 0) cls += ' cal-sun';
+    if (dow === 6) cls += ' cal-sat';
+    if (dateStr < today) cls += ' cal-past';
+    if (selectedDates.indexOf(dateStr) !== -1) cls += ' cal-sel';
+    html += '<div class="' + cls + '" onclick="toggleDate(\'' + dateStr + '\')">' + d + '</div>';
+    if ((first + d) % 7 === 0 && d < total) html += '</div><div class="cal-row">';
+  }
+  html += '</div>';
+  grid.innerHTML = html;
+
+  renderDateChips();
+}
+
+function toggleDate(dateStr) {
+  var today = new Date().toISOString().split('T')[0];
+  if (dateStr < today) return;
+  var idx = selectedDates.indexOf(dateStr);
+  if (idx === -1) selectedDates.push(dateStr);
+  else selectedDates.splice(idx, 1);
+  renderCalendar();
+  updatePriceCalc();
+}
+
+function renderDateChips() {
+  var el = document.getElementById('multiDateChips');
+  if (!el) return;
+  if (!selectedDates.length) { el.innerHTML = '<span style="font-weight:300;font-size:0.78rem;color:#a0aec0">날짜를 선택하세요</span>'; return; }
+  var sorted = selectedDates.slice().sort();
+  el.innerHTML = sorted.map(function(d) {
+    return '<span class="date-chip" onclick="toggleDate(\'' + d + '\')">' + d + ' ✕</span>';
+  }).join('');
+}
+
+function getDatesSummary() {
+  if (dateMode === 'single') return document.getElementById('useDate').value || '';
+  if (dateMode === 'range') {
+    var s = document.getElementById('rangeStart').value;
+    var e = document.getElementById('rangeEnd').value;
+    return s + ' ~ ' + e;
+  }
+  var sorted = selectedDates.slice().sort();
+  if (!sorted.length) return '';
+  if (sorted.length === 1) return sorted[0];
+  return sorted[0] + ' 외 ' + (sorted.length-1) + '일';
+}
+
+function calPrevMonth() {
+  calMonth--;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  renderCalendar();
+}
+
+function calNextMonth() {
+  calMonth++;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  renderCalendar();
+}
+
 // ─── 위저드 단계 이동 ────────────────────────────
 function goStep2() {
   if (!selectedVenue) { showAlert('시설을 선택해주세요.', 'error'); return; }
   if (selectedVenue.separate) { showAlert('별도협의 시설은 담당자에게 직접 연락해주세요.', 'error'); return; }
-  if (!document.getElementById('useDate').value)  { showAlert('사용 날짜를 입력해주세요.', 'error'); return; }
-  if (!document.getElementById('persons').value)  { showAlert('인원을 입력해주세요.', 'error'); return; }
-  if (!document.getElementById('purpose').value)  { showAlert('사용 목적을 입력해주세요.', 'error'); return; }
+  var dates = getActiveDates();
+  if (!dates.length) { showAlert('사용 날짜를 선택해주세요.', 'error'); return; }
+  if (!getPersonsValue()) { showAlert('인원을 입력해주세요.', 'error'); return; }
+  if (!document.getElementById('purpose').value) { showAlert('사용 목적을 입력해주세요.', 'error'); return; }
   showStep(2);
 }
 
@@ -315,8 +440,8 @@ function renderQuoteSummary() {
     '<div class="detail-item"><div class="di-lbl">기관명</div><div class="di-val">' + document.getElementById('orgName').value + '</div></div>' +
     '<div class="detail-item"><div class="di-lbl">담당자</div><div class="di-val">' + document.getElementById('managerName').value + '</div></div>' +
     '<div class="detail-item"><div class="di-lbl">시설</div><div class="di-val">' + selectedVenue.building + ' ' + selectedVenue.name + '</div></div>' +
-    '<div class="detail-item"><div class="di-lbl">일시</div><div class="di-val">' + document.getElementById('useDate').value + ' ' + document.getElementById('startTime').value + '~' + document.getElementById('endTime').value + '</div></div>' +
-    '<div class="detail-item"><div class="di-lbl">인원</div><div class="di-val">' + document.getElementById('persons').value + '명</div></div>' +
+    '<div class="detail-item"><div class="di-lbl">일시</div><div class="di-val">' + getDatesSummary() + ' ' + document.getElementById('startTime').value + '~' + document.getElementById('endTime').value + '</div></div>' +
+    '<div class="detail-item"><div class="di-lbl">인원</div><div class="di-val">' + getPersonsValue() + '명</div></div>' +
     '<div class="detail-item"><div class="di-lbl">문서 제목</div><div class="di-val">' + getDocTitle() + '</div></div>' +
     '</div>' +
     '<div style="margin-top:14px;padding:12px 16px;background:#edf2f8;border-radius:10px;">' +
@@ -599,10 +724,12 @@ function generateAndDownloadPDF() {
 // ─── 예약 요청 전송 ──────────────────────────────
 function submitReservation() {
   var calc = getCalcValues();
-  var date = document.getElementById('useDate').value;
+  var dates = getActiveDates();
+  var date  = dates.length ? dates[0] : '';
   var s    = document.getElementById('startTime').value;
   var e    = document.getElementById('endTime').value;
-  var rate = getApplicableRate(selectedVenue, parseInt(document.getElementById('persons').value) || 0);
+  var personsVal = getPersonsValue();
+  var rate = getApplicableRate(selectedVenue, personsVal);
 
   var bizText = '';
   if (bizMode === 'text') {
@@ -630,9 +757,10 @@ function submitReservation() {
     bizFileType: bizMode === 'file' ? bizFileData.type : '',
     bizFileData: bizMode === 'file' ? bizFileData.data : '',
     venueId: selectedVenue.id, venueName: selectedVenue.name, building: selectedVenue.building,
-    startDateTime: date + ' ' + s, endDateTime: date + ' ' + e,
-    hours: calcHours(s, e),
-    persons: parseInt(document.getElementById('persons').value) || 0,
+    startDateTime: date + ' ' + s, endDateTime: (dates[dates.length-1] || date) + ' ' + e,
+    hours: calcHours(s, e) * dates.length,
+    persons: personsVal,
+    dates: JSON.stringify(dates),
     purpose: document.getElementById('purpose').value,
     baseRate: calc.base, techFee: calc.techFee, surcharge: calc.surcharge, totalAmount: calc.total,
     docTitle: getDocTitle(),
