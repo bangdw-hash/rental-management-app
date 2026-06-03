@@ -42,6 +42,7 @@
   <div class="tab-wrap">
     <button class="tab-btn tab-active" id="tabRate" onclick="switchMainTab('rate')">📋 표준 대관료 안내</button>
     <button class="tab-btn" id="tabBook" onclick="switchMainTab('book')">✏️ 대관 예약 요청</button>
+    <button class="tab-btn" id="tabLookup" onclick="switchMainTab('lookup')">🔍 예약 조회</button>
   </div>
 
   <!-- ===== 표준 대관료 섹션 ===== -->
@@ -72,6 +73,83 @@
     </div>
     <div style="text-align:center;margin-top:8px;">
       <button class="btn-primary" onclick="switchMainTab('book')">대관 예약 요청하기 →</button>
+    </div>
+  </div>
+
+  <!-- ===== 예약 조회 섹션 ===== -->
+  <div id="sectionLookup" style="display:none;">
+
+    <!-- 조회 입력 -->
+    <div class="card">
+      <div class="card-title">예약 조회</div>
+      <p style="font-weight:300;font-size:0.82rem;color:#718096;margin-bottom:12px;">
+        예약 신청 후 발급된 요청번호(REQ-로 시작)를 입력하시면 현황을 확인하고 수정 요청·문서 재발행 등을 하실 수 있습니다.
+      </p>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="lookupInput" placeholder="예: REQ-1748123456789" style="flex:1;"
+               onkeydown="if(event.key==='Enter') lookupReservation()">
+        <button class="btn-primary" onclick="lookupReservation()" style="white-space:nowrap;">조회하기</button>
+      </div>
+      <div id="lookupError" style="display:none;margin-top:8px;font-size:0.82rem;color:#c0392b;font-weight:500;"></div>
+    </div>
+
+    <!-- 조회 결과 -->
+    <div id="lookupResult" style="display:none;">
+
+      <!-- 현황 카드 -->
+      <div class="card">
+        <div class="card-title" style="justify-content:space-between;">
+          <span>예약 현황</span>
+          <span id="lkStatusBadge" class="status-badge"></span>
+        </div>
+        <div class="detail-grid" id="lkDetailGrid"></div>
+      </div>
+
+      <!-- 액션 버튼 카드 -->
+      <div class="card">
+        <div class="card-title">이용 가능한 작업</div>
+        <div id="lkActions" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+      </div>
+
+      <!-- 수정 요청 폼 (숨김) -->
+      <div class="card" id="lkChangeForm" style="display:none;">
+        <div class="card-title">수정 요청 작성</div>
+        <div class="form-group">
+          <label>요청 유형</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;" id="lkChangeTypeWrap">
+            <button class="date-mode-btn active" data-type="SCHEDULE_CHANGE" onclick="setChangeType(this)">📅 일정 변경</button>
+            <button class="date-mode-btn" data-type="VENUE_CHANGE" onclick="setChangeType(this)">🏢 시설 변경</button>
+            <button class="date-mode-btn" data-type="CANCEL_REQUEST" onclick="setChangeType(this)">❌ 취소 요청</button>
+            <button class="date-mode-btn" data-type="OTHER" onclick="setChangeType(this)">💬 기타 문의</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>요청 내용 <span class="required">*</span></label>
+          <textarea id="lkChangeMemo" placeholder="변경하고자 하는 내용을 자세히 적어주세요." style="min-height:100px;"></textarea>
+        </div>
+        <div class="form-group">
+          <label>연락처 확인 <span class="required">*</span></label>
+          <input type="tel" id="lkChangeTel" placeholder="신청 시 입력한 연락처">
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-secondary" onclick="document.getElementById('lkChangeForm').style.display='none'">취소</button>
+          <button class="btn-primary" onclick="submitChangeRequest()">수정 요청 제출</button>
+        </div>
+      </div>
+
+      <!-- 문서 미리보기 (숨김) -->
+      <div class="card" id="lkDocPreview" style="display:none;">
+        <div class="card-title" style="justify-content:space-between;">
+          <span>문서 미리보기</span>
+          <button class="btn-secondary btn-sm" onclick="document.getElementById('lkDocPreview').style.display='none'">닫기</button>
+        </div>
+        <textarea id="lkDocText" readonly style="width:100%;height:280px;font-family:monospace;font-size:0.76rem;line-height:1.6;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:8px;padding:12px;resize:vertical;"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+          <button class="btn-secondary btn-sm" onclick="copyLkDoc()">📋 복사</button>
+          <button class="btn-primary btn-sm" onclick="downloadLkPDF()">📄 PDF 다운로드</button>
+        </div>
+      </div>
+
     </div>
   </div>
 

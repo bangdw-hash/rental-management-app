@@ -43,10 +43,12 @@ function loadData() {
 
 // ─── 탭 전환 ─────────────────────────────────────
 function switchMainTab(tab) {
-  document.getElementById('sectionRate').style.display = tab === 'rate' ? '' : 'none';
-  document.getElementById('sectionBook').style.display = tab === 'book' ? '' : 'none';
-  document.getElementById('tabRate').className = 'tab-btn' + (tab === 'rate' ? ' tab-active' : '');
-  document.getElementById('tabBook').className = 'tab-btn' + (tab === 'book' ? ' tab-active' : '');
+  document.getElementById('sectionRate').style.display   = tab === 'rate'   ? '' : 'none';
+  document.getElementById('sectionBook').style.display   = tab === 'book'   ? '' : 'none';
+  document.getElementById('sectionLookup').style.display = tab === 'lookup' ? '' : 'none';
+  document.getElementById('tabRate').className   = 'tab-btn' + (tab === 'rate'   ? ' tab-active' : '');
+  document.getElementById('tabBook').className   = 'tab-btn' + (tab === 'book'   ? ' tab-active' : '');
+  document.getElementById('tabLookup').className = 'tab-btn' + (tab === 'lookup' ? ' tab-active' : '');
 }
 
 // ─── 표준 대관료 테이블 렌더 ─────────────────────
@@ -807,3 +809,301 @@ function showAlert(msg, type) {
 
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ─── 예약 조회 ─────────────────────────────────────
+var lookupReq = null;
+var lkChangeType = 'SCHEDULE_CHANGE';
+
+function lookupReservation() {
+  var id = (document.getElementById('lookupInput').value || '').trim().toUpperCase();
+  var errEl = document.getElementById('lookupError');
+  var resEl = document.getElementById('lookupResult');
+  errEl.style.display = 'none';
+  resEl.style.display = 'none';
+  if (!id) { errEl.textContent = '요청번호를 입력하세요.'; errEl.style.display = ''; return; }
+
+  fetch(GAS_URL + '?action=getRequestDetail&id=' + encodeURIComponent(id))
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.success || !res.request) {
+        errEl.textContent = '해당 요청번호를 찾을 수 없습니다. 정확히 입력해 주세요.';
+        errEl.style.display = '';
+        return;
+      }
+      lookupReq = res.request;
+      renderLookupResult(lookupReq);
+    })
+    .catch(function() {
+      errEl.textContent = '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.';
+      errEl.style.display = '';
+    });
+}
+
+function renderLookupResult(r) {
+  // Status badge
+  var statusMap = {
+    QUOTE_ISSUED:'견적 발행', REQUESTED:'예약 요청', APPROVED:'승인',
+    REJECTED:'반려', CANCELLED:'취소', IN_USE:'사용 중',
+    COMPLETED:'사용 완료', INVOICED:'거래내역서 발행', PAID:'입금 완료'
+  };
+  var badge = document.getElementById('lkStatusBadge');
+  badge.textContent = statusMap[r.status] || r.status;
+  badge.className = 'status-badge s-' + r.status;
+
+  // Detail grid
+  var sd = (r.startDateTime || '').split(' ');
+  var ed = (r.endDateTime   || '').split(' ');
+  var useDate  = sd[0] || '';
+  var startT   = sd[1] ? sd[1].substring(0,5) : '';
+  var endT     = ed[1] ? ed[1].substring(0,5) : '';
+  var totalAmt = Number(r.finalAmount || r.totalAmount || 0);
+
+  document.getElementById('lkDetailGrid').innerHTML =
+    '<div class="detail-item"><div class="di-lbl">요청번호</div><div class="di-val" style="font-family:monospace;">' + r.id + '</div></div>' +
+    '<div class="detail-item"><div class="di-lbl">기관명</div><div class="di-val">' + (r.orgName||'') + '</div></div>' +
+    '<div class="detail-item"><div class="di-lbl">담당자</div><div class="di-val">' + (r.managerName||'') + ' ' + (r.tel||'') + '</div></div>' +
+    '<div class="detail-item"><div class="di-lbl">시설</div><div class="di-val">' + (r.building||'') + ' ' + (r.venueName||'') + '</div></div>' +
+    '<div class="detail-item"><div class="di-lbl">사용 일시</div><div class="di-val">' + useDate + ' ' + startT + (endT ? '~'+endT : '') + '</div></div>' +
+    '<div class="detail-item"><div class="di-lbl">인원</div><div class="di-val">' + (r.persons||'') + '명</div></div>' +
+    '<div class="detail-item"><div class="di-lbl">목적</div><div class="di-val">' + (r.purpose||'') + '</div></div>' +
+    '<div class="detail-item"><div class="di-lbl">금액</div><div class="di-val" style="font-weight:700;color:#1e3a5f;">' + fmtMoney(totalAmt) + '원</div></div>';
+
+  // Action buttons
+  var actions = document.getElementById('lkActions');
+  actions.innerHTML = '';
+  var status = r.status;
+
+  if (status === 'QUOTE_ISSUED') {
+    addLkBtn(actions, '✅ 예약 요청 확정', 'btn-success', function() { confirmMyRequest(r.id); });
+  }
+  if (['QUOTE_ISSUED','REQUESTED','APPROVED'].includes(status)) {
+    addLkBtn(actions, '📝 수정 요청', '', function() { openLkChangeForm(); });
+  }
+  if (['QUOTE_ISSUED','REQUESTED'].includes(status)) {
+    addLkBtn(actions, '❌ 취소 요청', 'btn-danger', function() {
+      if (confirm('예약 취소를 요청하시겠습니까?\n담당자 확인 후 처리됩니다.')) {
+        quickCancelRequest(r.id);
+      }
+    });
+  }
+  // 문서 재발행: 모든 상태에서 가능
+  var docLabel = ['COMPLETED','INVOICED','PAID'].includes(status) ? '📄 거래내역서 재발행' : '📄 견적서 재발행';
+  addLkBtn(actions, docLabel, '', function() { openLkDocPreview(r); });
+
+  document.getElementById('lkChangeForm').style.display = 'none';
+  document.getElementById('lkDocPreview').style.display = 'none';
+  document.getElementById('lookupResult').style.display = '';
+}
+
+function addLkBtn(container, label, extraCls, fn) {
+  var btn = document.createElement('button');
+  btn.className = 'btn-primary ' + (extraCls || '');
+  btn.textContent = label;
+  btn.onclick = fn;
+  container.appendChild(btn);
+}
+
+// ─── 예약 확정 (QUOTE_ISSUED → REQUESTED) ──────────
+function confirmMyRequest(id) {
+  fetch(GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'confirmRequest', id: id })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (res.success) {
+      showAlert('예약 요청이 확정되었습니다. 담당자 확인 후 연락드립니다.', 'success');
+      lookupReservation(); // 새로고침
+    } else {
+      showAlert(res.message || '처리 실패', 'error');
+    }
+  }).catch(function() { showAlert('서버 오류가 발생했습니다.', 'error'); });
+}
+
+// ─── 취소 요청 빠른 처리 ─────────────────────────────
+function quickCancelRequest(id) {
+  fetch(GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'requestChange', id: id, changeType: 'CANCEL_REQUEST', message: '신청자 취소 요청', tel: lookupReq ? lookupReq.tel : '' })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (res.success) { showAlert('취소 요청이 접수되었습니다. 담당자가 확인 후 처리합니다.', 'success'); }
+    else { showAlert(res.message || '처리 실패', 'error'); }
+  }).catch(function() { showAlert('서버 오류', 'error'); });
+}
+
+// ─── 수정 요청 폼 ────────────────────────────────────
+function openLkChangeForm() {
+  document.getElementById('lkDocPreview').style.display = 'none';
+  document.getElementById('lkChangeForm').style.display = '';
+  if (lookupReq) document.getElementById('lkChangeTel').value = lookupReq.tel || '';
+  window.scrollTo(0, document.getElementById('lkChangeForm').offsetTop - 20);
+}
+
+function setChangeType(btn) {
+  document.querySelectorAll('#lkChangeTypeWrap .date-mode-btn').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  lkChangeType = btn.dataset.type;
+}
+
+function submitChangeRequest() {
+  if (!lookupReq) return;
+  var memo = document.getElementById('lkChangeMemo').value.trim();
+  var tel  = document.getElementById('lkChangeTel').value.trim();
+  if (!memo) { showAlert('요청 내용을 입력해주세요.', 'error'); return; }
+  if (!tel)  { showAlert('연락처를 입력해주세요.', 'error'); return; }
+
+  fetch(GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'requestChange', id: lookupReq.id, changeType: lkChangeType, message: memo, tel: tel })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (res.success) {
+      showAlert('수정 요청이 접수되었습니다. 담당자가 확인 후 연락드립니다.', 'success');
+      document.getElementById('lkChangeForm').style.display = 'none';
+      document.getElementById('lkChangeMemo').value = '';
+    } else {
+      showAlert(res.message || '접수 실패', 'error');
+    }
+  }).catch(function() { showAlert('서버 오류', 'error'); });
+}
+
+// ─── 문서 재발행 ─────────────────────────────────────
+function openLkDocPreview(r) {
+  document.getElementById('lkChangeForm').style.display = 'none';
+  var text = buildReissueText(r);
+  document.getElementById('lkDocText').value = text;
+  document.getElementById('lkDocPreview').style.display = '';
+  window.scrollTo(0, document.getElementById('lkDocPreview').offsetTop - 20);
+}
+
+function buildReissueText(r) {
+  var sd = (r.startDateTime||'').split(' ');
+  var ed = (r.endDateTime  ||'').split(' ');
+  var useDate = sd[0]||'';
+  var startT  = sd[1] ? sd[1].substring(0,5) : '';
+  var endT    = ed[1] ? ed[1].substring(0,5) : '';
+  var totalAmt = Number(r.finalAmount || r.totalAmount || 0);
+  var baseAmt  = Number(r.baseRate || 0);
+  var surcharge= Number(r.surcharge || 0);
+  var techFee  = Number(r.techFee  || 0);
+  var s = settings;
+  var div = '─'.repeat(52);
+  var now = new Date().toLocaleString('ko-KR');
+  var statusMap = { QUOTE_ISSUED:'견적 발행', REQUESTED:'예약 요청', APPROVED:'승인',
+    REJECTED:'반려', CANCELLED:'취소', IN_USE:'사용 중',
+    COMPLETED:'사용 완료', INVOICED:'거래내역서 발행', PAID:'입금 완료' };
+
+  var txt = '';
+  txt += (s.ISSUER_NAME || '(재)아세아항공직업전문학교') + '\n';
+  txt += '대관료 견적서 (재발행)\n';
+  txt += div + '\n';
+  txt += '발행일시 : ' + now + '\n';
+  txt += '현재상태 : ' + (statusMap[r.status]||r.status) + '\n';
+  txt += div + '\n';
+  txt += '[신청자 정보]\n';
+  txt += '  기 관 명 : ' + (r.orgName||'') + '\n';
+  txt += '  담 당 자 : ' + (r.managerName||'') + '\n';
+  txt += '  연 락 처 : ' + (r.tel||'') + '\n';
+  txt += '  이 메 일 : ' + (r.email||'') + '\n';
+  txt += div + '\n';
+  txt += '[시설 및 일정]\n';
+  txt += '  시    설 : ' + (r.building||'') + ' ' + (r.venueName||'') + '\n';
+  txt += '  사용일시 : ' + useDate + ' ' + startT + (endT?'~'+endT:'') + '\n';
+  txt += '  인    원 : ' + (r.persons||'') + '명\n';
+  txt += '  사용목적 : ' + (r.purpose||'') + '\n';
+  txt += div + '\n';
+  txt += '[금액 내역]\n';
+  txt += '  기본 대관료 : ' + fmtMoney(baseAmt) + ' 원\n';
+  if (surcharge > 0) txt += '  할 증 료   : ' + fmtMoney(surcharge) + ' 원\n';
+  txt += '  기술관리비  : ' + fmtMoney(techFee) + ' 원\n';
+  txt += '  ─────────────────────────────\n';
+  txt += '  합    계   : ' + fmtMoney(totalAmt) + ' 원\n';
+  if (r.adjustReason) txt += '  비    고   : ' + r.adjustReason + '\n';
+  txt += div + '\n';
+  txt += '[입금 계좌]\n';
+  txt += '  ' + (s.ISSUER_ACCOUNT || '') + '\n';
+  txt += div + '\n';
+  txt += '[문의]\n';
+  txt += '  ' + (s.MANAGER_NAME||'방시원') + ' ' + (s.MANAGER_TITLE||'차장') + '  ☎ ' + (s.MANAGER_TEL||'010-2055-5883') + '\n';
+  txt += '  ' + (s.MANAGER_EMAIL||'bangsw@asea.or.kr') + '\n';
+  txt += div + '\n';
+  txt += '※ 부가세 면세 사업장 — 공급가액만 표기됩니다.\n';
+  return txt;
+}
+
+function copyLkDoc() {
+  var ta = document.getElementById('lkDocText');
+  ta.select();
+  document.execCommand('copy');
+  showAlert('클립보드에 복사되었습니다.', 'success');
+}
+
+function downloadLkPDF() {
+  var r = lookupReq;
+  if (!r) return;
+  if (!window.jspdf) { showAlert('PDF 라이브러리를 불러오는 중입니다. 잠시 후 다시 시도해주세요.', 'error'); return; }
+  var { jsPDF } = window.jspdf;
+  var doc = new jsPDF({ orientation:'p', unit:'mm', format:'a4' });
+  var s = settings;
+  var margin = 18, y = margin, pageW = 210;
+
+  // 헤더
+  doc.setFillColor(30,58,95); doc.rect(0,0,210,22,'F');
+  doc.setFontSize(13); doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255);
+  doc.text('VENUE RENTAL QUOTE (Re-issue)', margin, 14);
+  y = 28;
+
+  var nl = function(n) { y += (n||5); if (y>272){doc.addPage();y=margin;} };
+  var line = function() { doc.setDrawColor(200,210,220); doc.line(margin,y,pageW-margin,y); nl(4); };
+  var row  = function(label, val) {
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(74,85,104);
+    doc.text(label+':', margin+2, y);
+    doc.setFont('helvetica','normal'); doc.setTextColor(45,55,72);
+    var lines = doc.splitTextToSize(String(val||''), pageW-margin-50);
+    lines.forEach(function(ln,i){ doc.text(ln, margin+38, y); if(i<lines.length-1) nl(4.5); });
+    nl(5);
+  };
+
+  var sd = (r.startDateTime||'').split(' ');
+  var ed = (r.endDateTime  ||'').split(' ');
+  var statusMap = { QUOTE_ISSUED:'견적 발행', REQUESTED:'예약 요청', APPROVED:'승인',
+    REJECTED:'반려', CANCELLED:'취소', IN_USE:'사용 중',
+    COMPLETED:'사용 완료', INVOICED:'거래내역서 발행', PAID:'입금 완료' };
+
+  doc.setFontSize(9); doc.setFont('helvetica','normal'); doc.setTextColor(100,116,139);
+  doc.text('Re-issued: '+new Date().toLocaleDateString('ko-KR')+'  Status: '+(statusMap[r.status]||r.status), margin, y);
+  nl(6); line();
+
+  doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(30,58,95); doc.text('Applicant', margin, y); nl(5);
+  row('Organization', r.orgName);
+  row('Contact', (r.managerName||'') + '  ' + (r.tel||''));
+  row('Email', r.email);
+  nl(2); line();
+
+  doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(30,58,95); doc.text('Venue & Schedule', margin, y); nl(5);
+  row('Venue', (r.building||'') + ' ' + (r.venueName||''));
+  row('Date/Time', (sd[0]||'') + ' ' + (sd[1]?sd[1].substring(0,5):'') + (ed[1]?'~'+ed[1].substring(0,5):''));
+  row('Persons', (r.persons||'') + '명');
+  row('Purpose', r.purpose);
+  nl(2); line();
+
+  doc.setFontSize(9); doc.setFont('helvetica','bold'); doc.setTextColor(30,58,95); doc.text('Amount', margin, y); nl(5);
+  row('Base Rate', 'KRW ' + fmtMoney(r.baseRate||0));
+  if (Number(r.surcharge)>0) row('Surcharge', 'KRW ' + fmtMoney(r.surcharge||0));
+  row('Tech Fee', 'KRW ' + fmtMoney(r.techFee||0));
+  row('TOTAL', 'KRW ' + fmtMoney(r.finalAmount||r.totalAmount||0));
+  nl(2); line();
+
+  row('Account', s.ISSUER_ACCOUNT || '');
+  row('Manager', (s.MANAGER_NAME||'방시원') + ' ' + (s.MANAGER_TITLE||'차장') + '  ' + (s.MANAGER_TEL||'010-2055-5883'));
+
+  var sd0 = (sd[0]||'').replace(/-/g,'');
+  var fname = (r.orgName||'기관') + '_' + (r.venueName||'시설') + '_' + sd0 + '_재발행.pdf';
+  doc.save(fname);
+}

@@ -99,6 +99,8 @@ function doPost(e) {
   if (action === 'saveSettings')    return saveSettings(data);
   if (action === 'updateFinalAmt')  return updateFinalAmount(data);
   if (action === 'sendEmail')       return sendEmailAction(data);
+  if (action === 'confirmRequest')  return confirmRequest(data);
+  if (action === 'requestChange')   return requestChange(data);
   return jsonResponse({ success: false, message: '알 수 없는 요청' });
 }
 
@@ -548,6 +550,60 @@ function sendEmailAction(data) {
   } catch(err) {
     return jsonResponse({ success: false, message: '이메일 발송 실패: ' + err.message });
   }
+}
+
+// ══════════════════════════════════════════════════
+//  신청자 직접 작업 (비밀번호 불요, ID 인증)
+// ══════════════════════════════════════════════════
+
+function confirmRequest(data) {
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(SH_REQUESTS);
+  if (!sheet) return jsonResponse({ success: false, message: '데이터 없음' });
+
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][0] === data.id) {
+      if (rows[i][2] !== 'QUOTE_ISSUED') {
+        return jsonResponse({ success: false, message: '이미 처리된 요청입니다.' });
+      }
+      sheet.getRange(i + 1, 3).setValue('REQUESTED');
+      sheet.getRange(i + 1, 33).setValue(getKSTTimestamp());
+      addLogEntry(ss, data.id, 'REQUESTED', '신청자가 예약 요청을 확정함');
+      sendTelegram('✅ *예약 요청 확정*\n요청ID: ' + data.id + '\n기관: ' + rows[i][3] + '\n시설: ' + rows[i][16] + '\n신청자가 예약 요청을 확정했습니다.');
+      return jsonResponse({ success: true, message: '예약 요청이 확정되었습니다.' });
+    }
+  }
+  return jsonResponse({ success: false, message: '요청을 찾을 수 없습니다.' });
+}
+
+function requestChange(data) {
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(SH_REQUESTS);
+  if (!sheet) return jsonResponse({ success: false, message: '데이터 없음' });
+
+  var changeTypeMap = {
+    SCHEDULE_CHANGE: '일정 변경 요청',
+    VENUE_CHANGE:    '시설 변경 요청',
+    CANCEL_REQUEST:  '취소 요청',
+    OTHER:           '기타 문의'
+  };
+
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][0] === data.id) {
+      var ts = getKSTTimestamp();
+      var typeLabel = changeTypeMap[data.changeType] || data.changeType || '변경 요청';
+      var memo = '[' + ts + '] ' + typeLabel + ': ' + (data.message || '') +
+                 (data.tel ? ' (연락처: ' + data.tel + ')' : '');
+      var existing = rows[i][40] ? rows[i][40] + '\n' : '';
+      sheet.getRange(i + 1, 41).setValue(existing + memo);
+      addLogEntry(ss, data.id, 'CHANGE_REQUEST', typeLabel + ' - ' + (data.message || ''));
+      sendTelegram('📩 *신청자 수정 요청*\n요청ID: ' + data.id + '\n기관: ' + rows[i][3] + '\n유형: ' + typeLabel + '\n내용: ' + (data.message || '') + (data.tel ? '\n연락처: ' + data.tel : ''));
+      return jsonResponse({ success: true, message: '수정 요청이 접수되었습니다.' });
+    }
+  }
+  return jsonResponse({ success: false, message: '요청을 찾을 수 없습니다.' });
 }
 
 // ══════════════════════════════════════════════════
