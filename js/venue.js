@@ -777,10 +777,24 @@ function submitReservation() {
     .then(function(r) { return r.json(); })
     .then(function(res) {
       if (res.success) {
+        var rid = res.requestId || '';
+        var emailHint = document.getElementById('managerEmail').value || '이메일';
         document.getElementById('reserveResult').innerHTML =
-          '<span style="color:#1e7e34;font-weight:700">✅ 예약 요청이 접수되었습니다!</span><br>' +
-          '<span style="font-weight:300">요청번호: ' + (res.requestId || '') + '<br>담당자 검토 후 ' +
-          (document.getElementById('managerEmail').value || '이메일') + '으로 안내드립니다.</span>';
+          '<div style="text-align:center;padding:4px 0 8px;">' +
+            '<span style="color:#1e7e34;font-weight:700;font-size:1.05em;">✅ 예약 요청이 접수되었습니다!</span>' +
+          '</div>' +
+          '<div class="req-id-box">' +
+            '<span class="req-id-lbl">예약번호</span>' +
+            '<span id="newReqIdVal" class="req-id-val">' + rid + '</span>' +
+            '<button class="copy-id-btn" onclick="copyReqId(\'newReqIdVal\')">복사</button>' +
+          '</div>' +
+          '<div class="req-id-warn">⚠️ <strong>이 번호를 반드시 메모해 두세요.</strong><br>' +
+            '예약 조회 탭에서 이 번호로 상태 확인·서류 재발행·수정/취소 요청을 할 수 있습니다.<br>' +
+            '추후 <strong>계약 관리 시 이 번호가 기준</strong>이 되므로 꼭 기억해 주세요.' +
+          '</div>' +
+          '<div style="color:#666;font-size:.82em;margin-top:8px;text-align:center;">' +
+            '담당자 검토 후 ' + emailHint + '으로 안내드립니다.' +
+          '</div>';
         btn.style.display = 'none';
       } else {
         showAlert(res.message || '요청 전송에 실패했습니다.', 'error');
@@ -793,6 +807,19 @@ function submitReservation() {
 }
 
 // ─── 유틸 ─────────────────────────────────────────
+function copyReqId(elId) {
+  var el = document.getElementById(elId);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent.trim()).then(function() {
+    showAlert('예약 번호가 복사되었습니다.', 'success');
+  }).catch(function() { showAlert('복사 실패: 직접 선택해 복사해 주세요.', 'error'); });
+}
+function copyReqIdVal(val) {
+  navigator.clipboard.writeText(val).then(function() {
+    showAlert('예약 번호가 복사되었습니다.', 'success');
+  }).catch(function() { showAlert('복사 실패: 직접 선택해 복사해 주세요.', 'error'); });
+}
+
 function calcHours(start, end) {
   var sp = start.split(':'); var ep = end.split(':');
   return ((parseInt(ep[0]) * 60 + parseInt(ep[1])) - (parseInt(sp[0]) * 60 + parseInt(sp[1]))) / 60;
@@ -859,7 +886,9 @@ function renderLookupResult(r) {
   var totalAmt = Number(r.finalAmount || r.totalAmount || 0);
 
   document.getElementById('lkDetailGrid').innerHTML =
-    '<div class="detail-item"><div class="di-lbl">요청번호</div><div class="di-val" style="font-family:monospace;">' + r.id + '</div></div>' +
+    '<div class="detail-item"><div class="di-lbl">요청번호</div><div class="di-val" style="font-family:monospace;display:flex;align-items:center;gap:6px;">' +
+      r.id + '<button class="copy-id-btn" onclick="copyReqIdVal(\'' + r.id + '\')">복사</button>' +
+    '</div></div>' +
     '<div class="detail-item"><div class="di-lbl">기관명</div><div class="di-val">' + (r.orgName||'') + '</div></div>' +
     '<div class="detail-item"><div class="di-lbl">담당자</div><div class="di-val">' + (r.managerName||'') + ' ' + (r.tel||'') + '</div></div>' +
     '<div class="detail-item"><div class="di-lbl">시설</div><div class="di-val">' + (r.building||'') + ' ' + (r.venueName||'') + '</div></div>' +

@@ -155,7 +155,7 @@ function submitRequest(data) {
   ]);
 
   var ts = getKSTTimestamp();
-  var reqId = 'REQ-' + new Date().getTime();
+  var reqId = generateRequestId();
 
   sheet.appendRow([
     reqId, ts, 'QUOTE_ISSUED',
@@ -686,6 +686,16 @@ function addLogEntry(ss, requestId, step, memo) {
 }
 
 // ── 유틸 ──────────────────────────────────────────
+function generateRequestId() {
+  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var part = function() {
+    var s = '';
+    for (var i = 0; i < 4; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
+    return s;
+  };
+  return 'RQ-' + part() + '-' + part();
+}
+
 function getKSTTimestamp() {
   var kst = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   return kst.toISOString().replace('T', ' ').substring(0, 19);

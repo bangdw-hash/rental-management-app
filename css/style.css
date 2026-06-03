@@ -773,3 +773,11 @@ select { cursor: pointer; }
 .rpt-stats-grid .rstat-val { font-size: 1.1rem; font-weight: 700; color: #1e3a5f; }
 .rpt-stats-grid .rstat-label { font-size: 0.72rem; font-weight: 300; color: #718096; margin-top: 2px; }
 .modal-footer { padding: 14px 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 10px; }
+
+/* ─── 예약번호 박스 ─── */
+.req-id-box { display: flex; align-items: center; gap: 10px; background: #eaf3ff; border: 2px solid #2d6bbf; border-radius: 10px; padding: 12px 18px; margin: 10px 0; justify-content: center; flex-wrap: wrap; }
+.req-id-lbl { color: #555; font-size: 0.82em; white-space: nowrap; }
+.req-id-val { font-family: monospace; font-size: 1.45em; font-weight: 700; color: #1e3a5f; letter-spacing: 2px; }
+.copy-id-btn { font-size: 0.76em; padding: 4px 12px; background: #2d6bbf; color: #fff; border: none; border-radius: 5px; cursor: pointer; white-space: nowrap; transition: background 0.15s; }
+.copy-id-btn:hover { background: #1e4a9f; }
+.req-id-warn { background: #fff8e1; border-left: 4px solid #f0a500; border-radius: 5px; padding: 10px 14px; font-size: 0.84em; color: #7a5800; line-height: 1.6; margin-bottom: 4px; }
