@@ -303,7 +303,9 @@ function renderRequestList() {
   const tbody = document.getElementById('reqTableBody');
   const list = requests.filter(r =>
     (!statusFilter || r.status === statusFilter) &&
-    (!search || (r.orgName || '').toLowerCase().includes(search) || (r.contactName || '').toLowerCase().includes(search))
+    (!search || (r.orgName || '').toLowerCase().includes(search) ||
+                (r.contactName || '').toLowerCase().includes(search) ||
+                (r.reqId || r.id || '').toLowerCase().includes(search))
   );
   if (!list.length) { tbody.innerHTML = '<tr><td colspan="8" class="ta-center">해당 항목이 없습니다.</td></tr>'; return; }
   tbody.innerHTML = list.map(r => `
